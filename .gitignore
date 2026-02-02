@@ -1,2 +1,6 @@
 bot_data.json
 dev/
+__pycache__/
+.env
+.venv/
+.vscode/

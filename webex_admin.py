@@ -1,28 +1,60 @@
-from __future__ import print_function  # Needed if you want to have console output using Flask
+from __future__ import print_function
 import requests
 import json
 from webexteamssdk import WebexTeamsAPI, ApiError
 import helper
 
 
-# The entity making calls on the organization
-class Admin:
+class WebexAdmin:
 
-    def __init__(self, my_token: str, org_id: str, room_id: str):
+    def __init__(self, my_token: str, room_id: str, use_proxy: bool = False):
         self.my_token = my_token
-        self.org_id = org_id
         self.room_id = room_id
+        self.use_proxy = use_proxy
+        self.proxies = {
+            'http': 'http://127.0.0.1:8080',
+            'https': 'http://127.0.0.1:8080'
+        } if use_proxy else None
         self.api = WebexTeamsAPI(access_token=self.my_token)
         self.headers = self.get_headers()
+        
+        self.org_id = ""
+        self.my_id = ""
+        
         try:
-            self.my_id = self.api.people.me().id
+            me = self.api.people.me()
+            self.my_id = me.id
+            self.org_id = self._get_org_id()
         except ApiError:
-            self.my_id = ""
+            pass
+
+    def _get_org_id(self) -> str:
+        try:
+            response = requests.get(
+                url='https://webexapis.com/v1/people/me',
+                headers=self.headers,
+                proxies=self.proxies,
+                verify=not self.use_proxy
+            )
+            if response.status_code == 200:
+                return response.json().get("orgId", "")
+        except Exception as e:
+            print(f"Error getting org ID: {e}")
+        return ""
 
     def token_is_valid(self):
+        if not self.org_id:
+            self.org_id = self._get_org_id()
+            if not self.org_id:
+                print("Token assumed invalid: could not get org ID")
+                return False
+        
         response = requests.get(
             url=f'https://webexapis.com/v1/workspaces?orgId={self.org_id}',
-            headers=self.headers)
+            headers=self.headers,
+            proxies=self.proxies,
+            verify=not self.use_proxy
+        )
         response = helper.load_text(response)
         if isinstance(response, dict) and "items" in response.keys():
             print("Token valid.")
@@ -34,38 +66,44 @@ class Admin:
     def update_token(self, token):
         self.my_token = token
         self.headers = self.get_headers()
+        self.api = WebexTeamsAPI(access_token=self.my_token)
         try:
             self.my_id = self.api.people.me().id
+            self.org_id = self._get_org_id()
         except ApiError:
             self.my_id = ""
+            self.org_id = ""
         return self.my_id
 
     def get_headers(self) -> dict:
-        headers = {
+        return {
             "Authorization": "Bearer " + self.my_token,
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
-        return headers
 
-    # Need to use requests library here since Webex SDK doesn't yet support workspaces & devices
-    # Is called by get_activation_code. Checks if workspace name exists, creates workspace if not and returns ID
     def get_workspace_id(self, workspace_name) -> str:
+        if not self.org_id:
+            return ""
+        
         workspace_id = ""
-        # Get ID for specified workspace name
         try:
             response = requests.get(
                 url=f'https://webexapis.com/v1/workspaces?orgId={self.org_id}&displayName={workspace_name}',
-                headers=self.headers)
-        except ApiError:
+                headers=self.headers,
+                proxies=self.proxies,
+                verify=not self.use_proxy
+            )
+        except Exception:
             return ""
+        
         if helper.is_json(response) and "items" in response.json().keys():
             for workspace in response.json()["items"]:
                 workspace_id = workspace["id"]
         else:
             print(f"Something went wrong. Response: {helper.load_text(response)}")
             return ""
-        # Create workspace if it doesn't exist
+        
         if workspace_id == "":
             print(f"Creating workspace {workspace_name}.")
             payload = {
@@ -73,11 +111,16 @@ class Admin:
                 "orgId": self.org_id
             }
             try:
-                response = requests.post(url="https://webexapis.com/v1/workspaces",
-                                     data=json.dumps(payload), headers=self.headers)
-            except ApiError:
+                response = requests.post(
+                    url="https://webexapis.com/v1/workspaces",
+                    data=json.dumps(payload),
+                    headers=self.headers,
+                    proxies=self.proxies,
+                    verify=not self.use_proxy
+                )
+            except Exception:
                 return ""
-            # print(response.content)
+            
             if helper.is_json(response):
                 workspace_id = json.loads(response.content)["id"]
             else:
@@ -85,27 +128,32 @@ class Admin:
                 return ""
         else:
             print(f"Workspace {workspace_id} exists.")
+        
         return workspace_id
 
-    # Need to use requests library here since Webex SDK doesn't yet support workspaces & devices
-    # Gets activation code for a workspace
     def get_activation_code(self, workspace_name, model=None) -> str:
-        # check if token is valid
         if not self.token_is_valid():
             return ""
-        # Get ID for specified workspace name
+        
         workspace_id = self.get_workspace_id(workspace_name)
         if workspace_id == "":
             return ""
+        
         payload = {"workspaceId": workspace_id}
         if model:
             payload["model"] = model
-        # Create activation code
+        
         try:
-            response = requests.post(url="https://webexapis.com/v1/devices/activationCode?orgId=" + self.org_id,
-                                 data=json.dumps(payload), headers=self.headers)
-        except ApiError:
+            response = requests.post(
+                url=f"https://webexapis.com/v1/devices/activationCode?orgId={self.org_id}",
+                data=json.dumps(payload),
+                headers=self.headers,
+                proxies=self.proxies,
+                verify=not self.use_proxy
+            )
+        except Exception:
             return ""
+        
         if helper.is_json(response):
             activation_code = json.loads(response.content)["code"]
             return activation_code
@@ -114,9 +162,7 @@ class Admin:
             return ""
 
     def save(self):
-        data = {
+        return {
             "admin_token": self.my_token,
             "org_id": self.org_id
         }
-        return data
-
