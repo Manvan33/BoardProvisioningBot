@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from datetime import date
+import datetime
 import secrets
 import time
 from urllib.parse import urlencode, urlparse
@@ -105,7 +105,7 @@ class OAuthManager:
                 room_id,
                 access_token,
                 refresh_token,
-                date.fromtimestamp(time.time() + expires_in) if expires_in else None
+                datetime.datetime.fromtimestamp(time.time() + expires_in) if expires_in else None
             )
             return web.Response(
                 status=200,

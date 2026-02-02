@@ -3,6 +3,7 @@ from __future__ import print_function
 
 import asyncio
 from base64 import b64encode
+import datetime
 import json
 import os
 import signal
@@ -40,7 +41,6 @@ class BotWS:
         for membership in self.my_memberships:
             self.get_or_create_room(membership.roomId)
 
-        self.code_card = helper.make_code_card()       
 
         @staticmethod
         def unauthorized_message(room_admin_email):
@@ -67,21 +67,42 @@ class BotWS:
         )
         print(f"OAuth enabled: {OAUTH_REDIRECT_URI}")
         
-
-    def authorize_managed_org(self, room_id: str) -> None:
-        
-        pass
+    def code_card(self, room) -> helper.AdaptiveCard:
+        webex_admin = WebexAdmin(
+            my_token=self.get_valid_token_for_room(room)
+        )
+        workspaces = webex_admin.list_workspaces()
+        return helper.make_code_card(workspaces)
     
-    def store_tokens(self, room_id: str, access_token: str, refresh_token: str, expires_at: float) -> None:
+    def store_tokens(self, room_id: str, access_token: str, refresh_token: str, expires_at: datetime.datetime) -> None:
         room = self.storage.get_room(room_id)
         if not room:
             print("Error: Room not found in storage.")
             return
-        room['managed_org'] = {
+        
+        webex_admin = WebexAdmin(
+            my_token=access_token
+        )
+        if not webex_admin.token_is_valid():
+            print("Error: Provided access token is not valid.")
+            self.api.messages.create(
+                roomId=room_id,
+                markdown=f"{webex_admin.name}({webex_admin.my_email}) doesn't have admin rights on organization **{webex_admin.org_name}** or the token is invalid.\nPlease try authorizing again."
+            )
+            self.does_room_manage_org(room_id)
+            return
+        room['managed_org']['oauth_tokens'] = {
             'access_token': access_token,
             'refresh_token': refresh_token,
-            'expires_at': expires_at
+            'expires_at': expires_at.isoformat()
         }
+        room['managed_org']['org_id'] = webex_admin.org_id
+        room['managed_org']['org_name'] = webex_admin.org_name
+        self.api.messages.create(
+            roomId=room_id,
+            markdown=f"Successfully authorized organization **{webex_admin.org_name}** with admin {webex_admin.name}({webex_admin.my_email}).  You can now request activation codes by saying *@{self.bot_name} hello*."
+        )
+        self.storage.save()
         print(f"Stored tokens for room {room_id}")
 
     def get_or_create_room(self, room_id: str) -> dict:
@@ -94,7 +115,7 @@ class BotWS:
             if room_details.type == "direct":
                 creator = self.api.people.get(room_details.creatorId)
                 room_admin_email = creator.emails[0] if creator.emails else ""
-                self.set_room_admin(room_id, room_admin_email)
+                self.set_room_admin(room_id, room_admin_email, quiet=True)
         return room
     
     def _schedule_reinit(self, room_id: str) -> None:
@@ -265,6 +286,17 @@ class BotWS:
             )
             return False
     
+    def remove_managed_org(self, room_id: str) -> None:
+        room = self.storage.get_room(room_id)
+        if not room:
+            print("Error: Room not found in storage.")
+            return
+        room['managed_org'] = {
+            'org_id': '',
+            'org_name': '',
+            'oauth_tokens': {}
+        }
+        print(f"Removed managed organization from room {room_id}")
 
     def reinit(self, room_id: str) -> None:
         auth_url = self.oauth.create_auth_url(room_id)
@@ -295,7 +327,7 @@ class BotWS:
         except ApiError:
             return ""
 
-    def set_room_admin(self, room_id: str, user_email: str) -> bool:
+    def set_room_admin(self, room_id: str, user_email: str, quiet=False) -> bool:
         room = self.storage.get_room(room_id)
         if not room:
             print("Error: Room not found in storage.")
@@ -306,10 +338,11 @@ class BotWS:
             return False
         room['room_admin']['email'] = user_email
         room['room_admin']['id'] = admin_id
-        self.api.messages.create(
-            roomId=room_id,
-            text=f"User {user_email} is now the room admin."
-        )
+        if not quiet:
+            self.api.messages.create(
+                roomId=room_id,
+                text=f"User {user_email} is now the room admin."
+            )
         return True
 
     def add_allowed_user(self, room_id: str, user_email: str) -> bool:
@@ -317,11 +350,15 @@ class BotWS:
         if not room:
             print("Error: Room not found in storage.")
             return False
-        memberships = list(self.api.memberships.list(roomId=room_id, personEmail=user_email))
-        if not memberships:
-            print(f"Error: User {user_email} not found in room {room_id}.")
+        try:
+            memberships = list(self.api.memberships.list(roomId=room_id, personEmail=user_email))
+            if not memberships:
+                print(f"Error: User {user_email} not found in room {room_id}.")
+                return False
+            room['room_authorized_users'].append(memberships[0].personId)
+        except ApiError:
+            print(f"Error: Could not retrieve memberships for user {user_email} in room {room_id}.")
             return False
-        room['room_authorized_users'].append(memberships[0].personId)
         return True
     
     def remove_allowed_user(self, room_id: str, user_email: str) -> bool:
@@ -356,7 +393,7 @@ class BotWS:
             text="Hello! I'm here to help you provision Webex Boards for your organization."
         )
         self.set_room_admin(room_id, admin_email)
-        self.authorize_managed_org(room_id)
+        self.does_room_manage_org(room_id)
 
     def handle_removed(self, room_id: str) -> None:
         self.storage.remove_room(room_id)
@@ -385,8 +422,8 @@ class BotWS:
         tokens = room.get('managed_org', {}).get('oauth_tokens', {})
         access_token = tokens.get('access_token')
         refresh_token = tokens.get('refresh_token')
-        expires_at = tokens.get('expires_at', 0)
-        if not access_token or time() >= expires_at:
+        expires_at = datetime.datetime.fromisoformat(tokens.get('expires_at', '1970-01-01T00:00:00'))
+        if not access_token or time() >= expires_at.timestamp():
             print("Access token missing or expired.")
             tokens = self.oauth.refresh_tokens(refresh_token=refresh_token)
             room['managed_org']['oauth_tokens'] = tokens
@@ -408,12 +445,20 @@ class BotWS:
             return
         
         webex_admin = WebexAdmin(
-            my_token=self.get_valid_token_for_room(room),
-            room_id=room_id
-        )            
-        workspace_name = card_input.inputs["workspace"].strip()
+            my_token=self.get_valid_token_for_room(room)
+        )
+        new_workspace_name = card_input.inputs["workspace"].strip()
+        existing_workspace_id = card_input.inputs.get("existing-workspace", "").strip()
+        if not new_workspace_name and not existing_workspace_id:
+            self.api.messages.create(
+                roomId=room_id,
+                text="Please provide a workspace name or select an existing workspace."
+            )
+            return
         
-        activation_code = webex_admin.get_activation_code(workspace_name)
+        existing_workspace_name = webex_admin.list_workspaces().get(existing_workspace_id, "")
+        workspace_name = new_workspace_name if new_workspace_name else existing_workspace_name
+        activation_code = webex_admin.get_activation_code(new_workspace_name, existing_workspace_id)
         if activation_code == "":
             self.api.messages.create(
                 roomId=room_id,
@@ -426,7 +471,7 @@ class BotWS:
         print("Sending activation code.")
         self.api.messages.create(
             roomId=room_id,
-            text=f"Here's your activation code: {activation_code} for workspace {workspace_name}"
+            text=f"Here's your activation code: {activation_code} for workspace *{workspace_name}*"
         )
     
 
@@ -446,8 +491,9 @@ class BotWS:
         print(f"Command: {' '.join(command)}")
         
         match command[0]:
-            case "init" | "initialize":
-                self.authorize_managed_org(room_id)
+            case "reinit" | "reinitialize":
+                self.remove_managed_org(room_id)
+                self.does_room_manage_org(room_id)
                 return
             case "add":
                 for email in command[1:]:
@@ -470,13 +516,14 @@ class BotWS:
                         "To initialize the bot, please authorize using the link provided. "
                         "If the bot is already initialized, mention the bot to receive a card "
                         "to fill out to get an activation code.\n\nOther commands include:\n- "
-                        "add [email]: add an authorized user to your organization; add "
+                        "`add` [email]: add an authorized user to your organization; add "
+                        "`info`: get info about the organization linked to this room\n- "
                         "several at once separated with a space\n- "
-                        "remove [email]: remove an authorized user from your organization; "
+                        "`remove` [email]: remove an authorized user from your organization; "
                         "remove several at once separated with a space\n- "
-                        "reinit: change organization and/or re-authorize for this room\n "
+                        "`reinit`: change organization and/or re-authorize for this room\n "
                         "If you require further assistance, please contact me "
-                        "at agrobys@cisco.com."
+                        "at ivanivan@cisco.com."
                     )
                 )
             case "remove":
@@ -490,20 +537,45 @@ class BotWS:
                         self.api.messages.create(
                             roomId=room_id,
                             text=f"Failed to remove user {email}. Make sure they are in the allowed users list.")
+            case "info":
+                room = self.storage.get_room(room_id)
+                if not room:
+                    print("Error: Room not found in storage.")
+                    return
+                org_name = room['managed_org'].get('org_name', 'N/A')
+                org_id = room['managed_org'].get('org_id', 'N/A')
+                room_admin_email = room['room_admin'].get('email', 'N/A')
+                authorized_users = [
+                    self.get_email_from_id(user_id, room_id)
+                    for user_id in room['room_authorized_users']
+                ]
+                authorized_users_str = ", ".join(authorized_users) if authorized_users else "N/A"
+                self.api.messages.create(
+                    roomId=room_id,
+                    markdown=(
+                        f"**This room is linked to the following organization:**\n"
+                        f"- Organization Name: {org_name}\n"
+                        f"- Organization ID: {org_id}\n"
+                        f"- {self.bot_name} will only respond to authorized users in this room:\n"
+                        f"- Owner: {room_admin_email}\n"
+                        f"- Authorized Users: {authorized_users_str}"
+                    )
+                )
             case _:
+                room = self.storage.get_room(room_id)
                 if not self.does_room_manage_org(room_id):
                     return
                 self.api.messages.create(
                     roomId=room_id,
                     text="Here's your card",
-                    attachments=[self.code_card]
+                    attachments=[self.code_card(room)]
                 )
 
     async def _run_loop(self) -> None:
         reconnect_delay = 5
         max_reconnect_delay = 300
         
-        
+        await self.oauth._start_http_server()
         while self.running:
             try:
                 await self._connect_websocket()
@@ -532,8 +604,7 @@ class BotWS:
                 print(f"Reconnecting in {reconnect_delay} seconds...")
                 await asyncio.sleep(reconnect_delay)
                 reconnect_delay = min(reconnect_delay * 2, max_reconnect_delay)
-        
-        await self.oauth._start_http_server()
+
 
     def run(self) -> None:
         self.running = True
