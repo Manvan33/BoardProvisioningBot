@@ -63,6 +63,7 @@ class BotWS:
         self.oauth = OAuthManager(
             client_id=OAUTH_CLIENT_ID,
             client_secret=OAUTH_CLIENT_SECRET,
+            redirect_uri=OAUTH_REDIRECT_URI,
             tokens_store_function = self.store_tokens
         )
         print(f"OAuth enabled: {OAUTH_REDIRECT_URI}")

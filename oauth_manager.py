@@ -7,13 +7,12 @@ from aiohttp import web
 
 from oauth import OAuthFlow, DEFAULT_SCOPES, WEBEX_AUTH_URL
 
-REDIRECT_URI = "http://127.0.0.1:9999/auth"
 
 class OAuthManager:
-    def __init__(self, client_id: str, client_secret: str, tokens_store_function):
+    def __init__(self, client_id: str, client_secret: str, redirect_uri: str, tokens_store_function):
         self.client_id = client_id
         self.client_secret = client_secret
-        self.redirect_uri = REDIRECT_URI
+        self.redirect_uri = redirect_uri
         self.scopes = DEFAULT_SCOPES
         self.tokens_store_function = tokens_store_function
         
