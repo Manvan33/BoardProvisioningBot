@@ -27,8 +27,8 @@ class OAuthManager:
         )
         
     
-    def create_auth_url(self, room_id: str) -> str:
-        state = secrets.token_urlsafe(32)
+    def create_auth_url(self, room_id: str, request_id: str) -> str:
+        state = request_id
         self.pending_auth[state] = {
             "room_id": room_id,
             "created_at": time.time()
@@ -98,6 +98,7 @@ class OAuthManager:
             expires_in = tokens.get("expires_in", 0)       
             self.tokens_store_function(
                 room_id,
+                state,
                 access_token,
                 refresh_token,
                 datetime.datetime.fromtimestamp(time.time() + expires_in) if expires_in else None

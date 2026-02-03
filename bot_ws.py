@@ -6,6 +6,7 @@ from base64 import b64encode
 import datetime
 import json
 import os
+import secrets
 import signal
 import sys
 from time import time
@@ -40,7 +41,7 @@ class BotWS:
         self.my_memberships = list(my_memberships)
         for membership in self.my_memberships:
             self.get_or_create_room(membership.roomId)
-
+        self.active_auth_requests = {}
 
         @staticmethod
         def unauthorized_message(room_admin_email):
@@ -54,7 +55,7 @@ class BotWS:
         
         OAUTH_CLIENT_ID = os.getenv("OAUTH_CLIENT_ID")
         OAUTH_CLIENT_SECRET = os.getenv("OAUTH_CLIENT_SECRET")
-        OAUTH_REDIRECT_URI = os.getenv("OAUTH_REDIRECT_URI")
+        OAUTH_REDIRECT_URI = os.getenv("OAUTH_REDIRECT_URI", "http://127.0.0.1:9999/auth")
         if not OAUTH_CLIENT_ID or not OAUTH_CLIENT_SECRET:
             print("ERROR: OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET are required")
             sys.exit(1)
@@ -75,12 +76,15 @@ class BotWS:
         workspaces = webex_admin.list_workspaces()
         return helper.make_code_card(workspaces)
     
-    def store_tokens(self, room_id: str, access_token: str, refresh_token: str, expires_at: datetime.datetime) -> None:
+    def store_tokens(self, room_id: str, state: str, access_token: str, refresh_token: str, expires_at: datetime.datetime) -> None:
         room = self.storage.get_room(room_id)
         if not room:
             print("Error: Room not found in storage.")
             return
-        
+        auth_message_id = self.active_auth_requests.get(state, "")
+        if auth_message_id:
+            self.api.messages.delete(messageId=auth_message_id)
+            self.active_auth_requests.pop(state, None)
         webex_admin = WebexAdmin(
             my_token=access_token
         )
@@ -119,9 +123,6 @@ class BotWS:
                 self.set_room_admin(room_id, room_admin_email, quiet=True)
         return room
     
-    def _schedule_reinit(self, room_id: str) -> None:
-        self._pending_reinits.add(room_id)
-
     def save(self) -> None:
         self.storage.save()
         print("Bot state saved to bot_data.json")
@@ -280,11 +281,13 @@ class BotWS:
             print("Room has an authorized org.")
             return True
         else:
-            auth_url = self.oauth.create_auth_url(room_id)
-            self.api.messages.create(
+            request_id = secrets.token_urlsafe(32)
+            auth_url = self.oauth.create_auth_url(room_id, request_id)
+            message = self.api.messages.create(
                 roomId=room_id, 
                 markdown=f"To get started, please authorize with your admin account:\n\n[Click here to authorize]({auth_url})"
             )
+            self.active_auth_requests[request_id] = message.id
             return False
     
     def remove_managed_org(self, room_id: str) -> None:
@@ -298,17 +301,6 @@ class BotWS:
             'oauth_tokens': {}
         }
         print(f"Removed managed organization from room {room_id}")
-
-    def reinit(self, room_id: str) -> None:
-        auth_url = self.oauth.create_auth_url(room_id)
-        self.api.messages.create(
-            roomId=room_id,
-            text="Access token not valid or expired. Please re-authorize:"
-        )
-        self.api.messages.create(
-            roomId=room_id,
-            markdown=f"**[Click here to authorize]({auth_url})**"
-        )
 
     def get_email_from_id(self, person_id: str, room_id: str) -> str:
         try:
