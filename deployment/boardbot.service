@@ -20,7 +20,6 @@ StartLimitInterval=0
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=true
 ReadWritePaths=/home/deploy/BoardProvisioningBot
 
 # Logging
