@@ -472,7 +472,7 @@ class BotWS:
         print("Sending activation code.")
         self.api.messages.create(
             roomId=room_id,
-            text=f"Here's your activation code: {activation_code} for workspace *{workspace_name}*"
+            markdown=f"Here's your activation code: {activation_code} for workspace *{workspace_name}*"
         )
     
 
@@ -556,8 +556,8 @@ class BotWS:
                     markdown=(
                         f"**This room is linked to the following organization:**\n"
                         f"- Organization Name: {org_name}\n"
-                        f"- Organization ID: {org_id}\n"
-                        f"- {self.bot_name} will only respond to authorized users in this room:\n"
+                        f"- Organization ID: {org_id}\n\n"
+                        f"{self.bot_name} will only respond to authorized users in this room:\n"
                         f"- Owner: {room_admin_email}\n"
                         f"- Authorized Users: {authorized_users_str}"
                     )
