@@ -9,7 +9,7 @@ User=deploy
 Group=deploy
 WorkingDirectory=/home/deploy/BoardProvisioningBot
 EnvironmentFile=/home/deploy/BoardProvisioningBot/.env
-ExecStart=/home/deploy/BoardProvisioningBot/.venv/bin/python /home/deploy/BoardProvisioningBot/bot_ws.py
+ExecStart=/usr/bin/env uv run bot_ws.py
 
 # Restart configuration
 Restart=always

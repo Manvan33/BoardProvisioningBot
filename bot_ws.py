@@ -634,6 +634,10 @@ class BotWS:
 
 if __name__ == "__main__":
     bot_data_location = Path("bot_data.json")
+    # create file if it doesn't exist
+    if not bot_data_location.exists():
+        bot_data_location.touch()
+        
     BOT_TOKEN = os.getenv("BOT_TOKEN")
     if not BOT_TOKEN:
         print("ERROR: BOT_TOKEN is required")
