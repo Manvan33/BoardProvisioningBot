@@ -505,18 +505,17 @@ class BotWS:
             case "help":
                 self.api.messages.create(
                     roomId=room_id,
-                    text=(
-                        "To initialize the bot, please authorize using the link provided. "
-                        "If the bot is already initialized, mention the bot to receive a card "
-                        "to fill out to get an activation code.\n\nOther commands include:\n- "
-                        "`add` [email]: add an authorized user to your organization; add "
+                    markdown=(
+                        f"Say *@{self.bot_name} hello*"
+                        " to provision a board. \n\nOther commands include:\n- "
+                        "`add` [email]: add an authorized user to your organization;"
+                        " add several at once separated with a space\n- "
                         "`info`: get info about the organization linked to this room\n- "
-                        "several at once separated with a space\n- "
-                        "`remove` [email]: remove an authorized user from your organization; "
+                        "`remove`: [email]: remove an authorized user from your organization; "
                         "remove several at once separated with a space\n- "
-                        "`reinit`: change organization and/or re-authorize for this room\n "
-                        "If you require further assistance, please contact me "
-                        "at ivanivan@cisco.com."
+                        "`reinit`: change organization and/or re-authorize for this room\n\n "
+                        "If you require further assistance, please contact "
+                        "ivanivan@cisco.com"
                     )
                 )
             case "remove":
