@@ -15,11 +15,7 @@ class OAuthManager:
         self.redirect_uri = redirect_uri
         self.scopes = DEFAULT_SCOPES
         self.tokens_store_function = tokens_store_function
-        
-        parsed_uri = urlparse(self.redirect_uri)
-        self.callback_host = parsed_uri.hostname or "127.0.0.1"
-        self.callback_port = parsed_uri.port or 9999
-        self.callback_path = parsed_uri.path or "/auth"
+        self.callback_path = urlparse(self.redirect_uri).path
         
         self.pending_auth: dict[str, dict] = {}
         
@@ -128,8 +124,8 @@ class OAuthManager:
         await self.http_runner.setup()
         self.http_site = web.TCPSite(
             self.http_runner,
-            self.callback_host,
-            self.callback_port
+            '127.0.0.1',
+            9999
         )
         await self.http_site.start()
         print(f"OAuth callback server running on {self.redirect_uri}")
