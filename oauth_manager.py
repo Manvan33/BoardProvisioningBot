@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import asyncio
 import datetime
 import secrets
 import time
@@ -92,7 +93,8 @@ class OAuthManager:
         room_id = auth_data["room_id"]
         
         try:
-            tokens = self.exchange_code_for_tokens(code)
+            loop = asyncio.get_running_loop()
+            tokens = await loop.run_in_executor(None, self.exchange_code_for_tokens, code)
             access_token = tokens["access_token"]
             refresh_token = tokens.get("refresh_token")
             expires_in = tokens.get("expires_in", 0)       
