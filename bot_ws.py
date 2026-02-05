@@ -129,7 +129,7 @@ class BotWS:
 
     async def _connect_websocket(self) -> None:
         if not self.device_info:
-            self.device_info = webex_utils.get_device_info(self.bot_token)
+            self.device_info = await webex_utils.get_device_info_async(self.bot_token)
         
         ws_url = self.device_info.get("webSocketUrl")
         if not ws_url:

@@ -2,6 +2,7 @@
 import base64
 from base64 import b64encode
 import requests
+import aiohttp
 
 WDM_DEVICES_URL = "https://wdm-a.wbx2.com/wdm/api/v1/devices"
 
@@ -29,6 +30,27 @@ def get_device_info(bot_token):
                     print(f"Using existing device: {device.get('url')}")
                     result = device
                     break
+    except Exception as e:
+        print(f"Error checking existing devices: {e}")
+    return result
+
+async def get_device_info_async(bot_token):
+    result = {}
+    headers = {
+        "Authorization": f"Bearer {bot_token}",
+        "Content-Type": "application/json"
+    }
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(WDM_DEVICES_URL, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    devices = data.get("devices", [])
+                    for device in devices:
+                        if device.get("name") == DEVICE_DATA["name"]:
+                            print(f"Using existing device: {device.get('url')}")
+                            result = device
+                            break
     except Exception as e:
         print(f"Error checking existing devices: {e}")
     return result
