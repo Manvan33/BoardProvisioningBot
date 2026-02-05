@@ -40,3 +40,23 @@ def is_json(text):
         return True
     except JSONDecodeError:
         return False
+
+
+def create_admin(token, org_id, room_id):
+    from webex_admin import WebexAdmin
+    return WebexAdmin(token)
+
+
+def make_init_card() -> AdaptiveCard:
+    greeting = TextBlock("Welcome! Please initialize the bot.", size="Medium", weight="Bolder")
+    instruction = TextBlock(
+        "Please enter your Organization ID and Personal Access Token.",
+        wrap=True
+    )
+    org_id = Text('org_id', placeholder="Organization ID")
+    access_token = Text('access_token', placeholder="Personal Access Token")
+    submit = Submit(title="Initialize")
+    card = AdaptiveCard(
+        body=[greeting, instruction, org_id, access_token], actions=[submit]
+    )
+    return card
