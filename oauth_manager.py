@@ -9,6 +9,7 @@ from aiohttp import web
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from oauth import OAuthFlow, DEFAULT_SCOPES, WEBEX_AUTH_URL
+from log_config import logger
 
 
 class OAuthManager:
@@ -46,7 +47,7 @@ class OAuthManager:
                 return decoded.split('/')[-1]
             return ""
         except Exception as e:
-            print(f"Error decoding room ID: {e}")
+            logger.error(f"Error decoding room ID: {e}")
             return ""
 
     def create_auth_url(self, room_id: str, request_id: str) -> str:
@@ -140,7 +141,7 @@ class OAuthManager:
             )
             
         except Exception as e:
-            print(f"OAuth callback error: {e}")
+            logger.error(f"OAuth callback error: {e}")
             template = self.jinja_env.get_template("oauth_error.html")
             return web.Response(
                 status=500,
@@ -160,7 +161,7 @@ class OAuthManager:
             9999
         )
         await self.http_site.start()
-        print(f"OAuth callback server running on {self.redirect_uri}")
+        logger.info(f"OAuth callback server running on {self.redirect_uri}")
     async def _stop_http_server(self) -> None:
         if self.http_runner:
             await self.http_runner.cleanup()
