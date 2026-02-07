@@ -145,6 +145,33 @@ class WebexAdmin:
             print(f"Something went wrong. Response: {helper.load_text(response)}")
             return ""
 
+    def get_workspace_id(self, name) -> str:
+        workspaces = self.list_workspaces()
+        for id, display_name in workspaces.items():
+            if display_name == name:
+                return id
+        return ""
+
+    def get_devices(self, workspace_id) -> list:
+        if not self.org_id:
+            return None
+
+        try:
+            response = requests.get(
+                url=f'https://webexapis.com/v1/devices?workspaceId={workspace_id}',
+                headers=self.headers,
+                proxies=self.proxies,
+                verify=not self.use_proxy
+            )
+        except Exception:
+            return None
+
+        if helper.is_json(response) and "items" in response.json().keys():
+            return response.json()["items"]
+        else:
+            print(f"Something went wrong. Response: {helper.load_text(response)}")
+            return None
+
     def save(self):
         return {
             "admin_token": self.my_token,

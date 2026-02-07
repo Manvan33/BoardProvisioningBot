@@ -510,6 +510,7 @@ class BotWS:
                         " to provision a board. \n\nOther commands include:\n- "
                         "`add` [email]: add an authorized user to your organization;"
                         " add several at once separated with a space\n- "
+                        "`details` [workspace name]: get details about a workspace (devices, status, IP)\n- "
                         "`info`: get info about the organization linked to this room\n- "
                         "`remove`: [email]: remove an authorized user from your organization; "
                         "remove several at once separated with a space\n- "
