@@ -30,6 +30,16 @@ def get_device_info(bot_token):
                     print(f"Using existing device: {device.get('url')}")
                     result = device
                     break
+        else:
+            # no existing device, create one
+            print("No existing device found, creating a new one.")
+            create_response = requests.post(WDM_DEVICES_URL, headers=headers, json=DEVICE_DATA)
+            if create_response.status_code == 200:
+                result = create_response.json()
+                print(f"Created new device: {result.get('url')}")
+            else:
+                print(f"Failed to create device: {create_response.status_code} - {create_response.text}")
+
     except Exception as e:
         print(f"Error checking existing devices: {e}")
     return result
@@ -51,6 +61,17 @@ async def get_device_info_async(bot_token):
                             print(f"Using existing device: {device.get('url')}")
                             result = device
                             break
+                else:
+                    # no existing device, create one
+                    print("No existing device found, creating a new one.")
+                    async with session.post(WDM_DEVICES_URL, headers=headers, json=DEVICE_DATA) as create_response:
+                        if create_response.status == 200:
+                            result = await create_response.json()
+                            print(f"Created new device: {result.get('url')}")
+                        else:
+                            text = await create_response.text()
+                            print(f"Failed to create device: {create_response.status} - {text}")
+
     except Exception as e:
         print(f"Error checking existing devices: {e}")
     return result
