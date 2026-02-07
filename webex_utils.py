@@ -62,3 +62,11 @@ def is_bot_id(bot_id: str, person_id: str) -> bool:
         pass
     
     return person_id == bot_id
+
+def base64_to_uuid(encoded_id: str):
+    try:
+        decoded = base64.b64decode(encoded_id + "==").decode("utf-8")
+        uuid = decoded.split("/")[-1]
+        return uuid
+    except Exception:
+        pass
