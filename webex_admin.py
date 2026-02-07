@@ -147,7 +147,8 @@ class WebexAdmin:
             ws_id = workspace["id"]
             name = workspace["displayName"]
             count = device_counts.get(ws_id, 0)
-            result[ws_id] = f"{name} - {count} devices"
+            devices_string = "device" if count == 1 else "devices"
+            result[ws_id] = f"{name} - {count} {devices_string}"
         
         return result
     
