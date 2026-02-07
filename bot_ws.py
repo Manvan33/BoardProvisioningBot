@@ -16,6 +16,7 @@ from pathlib import Path
 import websockets
 
 from webex_admin import WebexAdmin
+import webex_admin
 
 load_dotenv()
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError
@@ -527,6 +528,8 @@ class BotWS:
                         " to provision a board. \n\nOther commands include:\n- "
                         "`add` [email]: add an authorized user to your organization;"
                         " add several at once separated with a space\n- "
+                        "`details` [workspace name]: get details about a workspace (devices, status, IP); "
+                        "use **ALL** to get details about all workspaces\n- "
                         "`info`: get info about the organization linked to this room\n- "
                         "`remove`: [email]: remove an authorized user from your organization; "
                         "remove several at once separated with a space\n- "
@@ -584,6 +587,37 @@ class BotWS:
                         f"- Authorized Users: {authorized_users_str}"
                     )
                 )
+            case "details":
+                room = self.storage.get_room(room_id)
+                if not room:
+                    print("Error: Room not found in storage.")
+                    return
+
+                if len(command) < 2:
+                    self.api.messages.create(
+                        roomId=room_id,
+                        text="Please provide a workspace name."
+                    )
+                    return
+
+                webex_admin = WebexAdmin(
+                    my_token=self.get_valid_token_for_room(room)
+                )
+                workspace_name = " ".join(command[1:])
+                
+                if workspace_name.lower() == "all":
+                    response = ""
+                    for workspace_id, workspace_name in webex_admin.list_workspaces().items():
+                        response += self.workspace_details_string(workspace_id, workspace_name, webex_admin)+"\n"
+                else:
+                    response = self.workspace_details_string(
+                        webex_admin.get_workspace_id(workspace_name), workspace_name, webex_admin
+                    )
+                self.api.messages.create(
+                    roomId=room_id,
+                    markdown=response
+                )
+                
             case _:
                 room = self.storage.get_room(room_id)
                 if not self.does_room_manage_org(room_id):
@@ -594,6 +628,40 @@ class BotWS:
                     attachments=[self.code_card(room)]
                 )
 
+    def workspace_details_string(self, workspace_id: str, workspace_name: str, webex_admin) -> str:
+        devices = webex_admin.get_devices(workspace_id)
+        if devices is None:
+            return f"No devices in workspace '{workspace_name}'"
+        else:
+            workspace_link = f"https://admin.webex.com/workspaces/{webex_utils.base64_to_uuid(workspace_id)}/overview"
+            msg = f"Workspace **[{workspace_name}]({workspace_link})** has {len(devices)} device{'s' if len(devices) != 1 else ''}\n"
+            for i, device in enumerate(devices):       
+                product = device.get("product", "Unknown")
+                device_link = f"[{product}](https://admin.webex.com/devices/details/{webex_utils.base64_to_uuid(device.get('callingDeviceId', ''))}/overview)"
+                device_mac = device.get("mac", "Unknown")
+                status = device.get("connectionStatus", "Unknown")
+                if status.startswith("connected"):
+                    last_seen = ""
+                    if status == "connected":
+                        status = f"🟢"
+                    else:
+                        status = f"🟡"
+                else:
+                    status = f"🔴"
+                    last_seen = device.get("lastSeen", "")
+                    # lastSeen has format '2025-09-24T14:06:26.047Z', convert to human readable format
+                    if last_seen:
+                        try:
+                            last_seen_dt = datetime.datetime.strptime(last_seen, "%Y-%m-%dT%H:%M:%S.%fZ")
+                            last_seen = f"- last seen: {last_seen_dt.strftime("%Y-%m-%d at %H:%M")} " 
+                        except ValueError:
+                            pass
+                        # Phone emoji to call
+                call_link = f"[📞 ](tel:{device.get('primarySipUrl')})"
+                ip = device.get("ip", "0.0.0.0")
+                msg += f"- {status} {device_link} - {device_mac} | {ip} {last_seen}- {call_link}\n"
+            return msg
+    
     async def _run_loop(self) -> None:
         reconnect_delay = 5
         max_reconnect_delay = 300
