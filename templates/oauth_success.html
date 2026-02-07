@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authorization Successful</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            text-align: center;
+            padding: 3rem;
+            border: 1px solid #333;
+            border-radius: 12px;
+            background-color: #1e1e1e;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            max-width: 400px;
+            width: 90%;
+        }
+        h1 {
+            color: #2ecc71;
+            margin-bottom: 1.5rem;
+            font-weight: 300;
+        }
+        p {
+            margin-bottom: 2.5rem;
+            color: #b0b0b0;
+            line-height: 1.6;
+        }
+        .button {
+            display: inline-block;
+            background-color: #2ecc71;
+            color: #121212;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        .button:hover {
+            background-color: #27ae60;
+        }
+        .button:active {
+            transform: scale(0.98);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Authorization Successful</h1>
+        <p>You have successfully authorized the application. You can now close this window or return to Webex.</p>
+        <a href="webexteams://im?space={{ space_uuid }}" class="button">Return to Webex Space</a>
+    </div>
+    <script>
+        // Optional: Attempt to close the window automatically after a delay
+        // setTimeout(function() {
+        //     window.close();
+        // }, 5000);
+    </script>
+</body>
+</html>
