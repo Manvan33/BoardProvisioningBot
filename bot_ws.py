@@ -553,6 +553,42 @@ class BotWS:
                         f"- Authorized Users: {authorized_users_str}"
                     )
                 )
+            case "details":
+                room = self.storage.get_room(room_id)
+                if not room:
+                    print("Error: Room not found in storage.")
+                    return
+
+                if len(command) < 2:
+                    self.api.messages.create(
+                        roomId=room_id,
+                        text="Please provide a workspace name."
+                    )
+                    return
+
+                workspace_name = " ".join(command[1:])
+                webex_admin = WebexAdmin(
+                    my_token=self.get_valid_token_for_room(room)
+                )
+                workspace_id = webex_admin.get_workspace_id(workspace_name)
+
+                if workspace_id:
+                    devices = webex_admin.get_devices(workspace_id)
+                    if devices is None:
+                         self.api.messages.create(
+                            roomId=room_id,
+                            text=f"Failed to retrieve devices for workspace '{workspace_name}'."
+                        )
+                    else:
+                        msg = f"Workspace: {workspace_name}\nDevices: {len(devices)}\n"
+                        for i, device in enumerate(devices):
+                            status = device.get("connectionStatus", "Unknown")
+                            ips = ", ".join(device.get("ipAddresses", []))
+                            msg += f"{i+1}. {device.get('displayName', 'Unknown')} ({status}) - {ips}\n"
+                        self.api.messages.create(roomId=room_id, text=msg)
+                else:
+                    self.api.messages.create(roomId=room_id, text=f"Workspace '{workspace_name}' not found.")
+
             case _:
                 room = self.storage.get_room(room_id)
                 if not self.does_room_manage_org(room_id):

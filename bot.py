@@ -259,26 +259,6 @@ class Bot:
                                                    f"If you require further assistance, please contact me "
                                                    f"at agrobys@cisco.com.")
 
-        elif len(command) > 1 and (command[0] == "info" or command[0] == "details"):
-            if actor_id in self.org_allowed_users[org_id]:
-                workspace_name = " ".join(command[1:])
-                workspace_id = admin.get_workspace_id(workspace_name)
-                if workspace_id:
-                    devices = admin.get_devices(workspace_id)
-                    if devices is None:
-                        self.api.messages.create(room_id, text=f"Failed to retrieve devices for workspace '{workspace_name}'.")
-                    else:
-                        msg = f"Workspace: {workspace_name}\nDevices: {len(devices)}\n"
-                        for i, device in enumerate(devices):
-                            status = device.get("connectionStatus", "Unknown")
-                            ips = ", ".join(device.get("ipAddresses", []))
-                            msg += f"{i+1}. {device.get('displayName', 'Unknown')} ({status}) - {ips}\n"
-                        self.api.messages.create(room_id, text=msg)
-                else:
-                    self.api.messages.create(room_id, text=f"Workspace '{workspace_name}' not found.")
-            else:
-                self.handle_unauthorized(org_id, actor_id, room_id)
-
         # Adds allowed users on "add" command
         elif len(command) > 1 and command[0] == "add":
             if actor_id in self.org_allowed_users[org_id]:
