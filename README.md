@@ -35,16 +35,16 @@ If any of those are true, this bot could make your life a bit easier.
 
 To run this code in your own environment, you need to:
 
-1. Create your own bot at https://developer.webex.com/my-apps/new/bot. Make sure to save the name, email, id and token somewhere.
-2. Have somewhere to run it. Mine runs on a Debian Linux VM, but anything with Python should work. Create a directory with the code.
-3. Create an environment and export the variables BOT_URL, BOT_PORT, BOT_TOKEN, BOT_ID, BOT_NAME, and BOT_EMAIL (all strings). 
-4. Please note: 
-   - **BOT_URL should include 'https://' or 'http://'**.
-   - BOT_PORT is the port you'd like Flask to run on.
-   - The remaining values are your bot's attributes.
-5. Install Python3 and the packages defined in ```requirements.txt```. 
-6. You should now be ready to run scripts.
-   - First, run the ```create_webhooks()``` function in ```webhooks.py```. You can do this with the following bash command: ```python3 -c "from webhooks import create_webhooks; print(create_webhooks())"```. (**NOTE**: There is currently still an error with the personId. The first two webhooks should be created though.)
-   - Check webhooks: ```python3 -c "from webhooks import list_webhooks; print(list_webhooks())"```
-   - (Optional if something goes wrong) Delete webhooks: ```python3 -c "from webhooks import delete_webhooks; print(delete_webhooks())"```
-   - Finally, run the app: ```python3 app.py```
+1. Create your own bot at https://developer.webex.com/my-apps/new/bot. Make sure to save the bot access token.
+2. Create an Integration at https://developer.webex.com/my-apps/new/integration to handle OAuth. Save the Client ID and Client Secret.
+3. Have somewhere to run it. Mine runs on a Debian Linux VM, but anything with Python should work. Create a directory with the code.
+4. Install `uv` if you haven't already: https://github.com/astral-sh/uv
+5. Set up environment variables in a `.env` file (see `.env.example`):
+   - `BOT_TOKEN`: Your bot's access token.
+   - `OAUTH_CLIENT_ID`: Your integration's Client ID.
+   - `OAUTH_CLIENT_SECRET`: Your integration's Client Secret.
+   - `OAUTH_REDIRECT_URI`: The redirect URI for OAuth (default: http://127.0.0.1:9999/auth).
+6. Run the bot using `uv`:
+   ```bash
+   uv run bot_ws.py
+   ```
