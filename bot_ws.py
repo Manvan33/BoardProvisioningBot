@@ -74,7 +74,7 @@ class BotWS:
         webex_admin = WebexAdmin(
             my_token=self.get_valid_token_for_room(room)
         )
-        workspaces = webex_admin.list_workspaces()
+        workspaces = webex_admin.list_workspaces_with_devices()
         return helper.make_code_card(workspaces)
     
     def store_tokens(self, room_id: str, state: str, access_token: str, refresh_token: str, expires_at: datetime.datetime) -> None:
@@ -635,11 +635,17 @@ class BotWS:
                 room = self.storage.get_room(room_id)
                 if not self.does_room_manage_org(room_id):
                     return
+                message = self.api.messages.create(
+                    roomId=room_id,
+                    text="fetching details of your org..."
+                )
                 self.api.messages.create(
                     roomId=room_id,
                     text="Here's your card",
                     attachments=[self.code_card(room)]
                 )
+                self.api.messages.delete(messageId=message.id)
+                
 
     def workspace_details_string(self, workspace_id: str, workspace_name: str, webex_admin) -> str:
         devices = webex_admin.get_devices(workspace_id)
