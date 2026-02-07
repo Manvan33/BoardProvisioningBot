@@ -194,7 +194,7 @@ class BotWS:
             return
         
         if message.text:
-            self.handle_command(message.text, room_id, person_id)
+            self.handle_command(message, room_id, person_id)
 
     async def _handle_card_event(self, activity: dict) -> None:
         activity_id = activity.get("id", "")
@@ -468,8 +468,9 @@ class BotWS:
         )
     
 
-    def handle_command(self, message: str, room_id: str, actor_id: str) -> None:
-        words = message.split()
+    def handle_command(self, message_obj, room_id: str, actor_id: str) -> None:
+        message_text = message_obj.text
+        words = message_text.split()
         if not words:
             return
         
@@ -489,7 +490,23 @@ class BotWS:
                 self.does_room_manage_org(room_id)
                 return
             case "add":
-                for email in command[1:]:
+                emails_to_add = set()
+
+                # Check for mentions
+                if hasattr(message_obj, 'mentionedPeople') and message_obj.mentionedPeople:
+                    for person_id in message_obj.mentionedPeople:
+                        if person_id == self.bot_id:
+                            continue
+                        email = self.get_email_from_id(person_id, room_id)
+                        if email:
+                            emails_to_add.add(email)
+
+                # Check for emails in text
+                for word in command[1:]:
+                    if '@' in word and '.' in word:
+                        emails_to_add.add(word)
+
+                for email in emails_to_add:
                     success = self.add_allowed_user(room_id, email)
                     if success:
                         self.api.messages.create(
