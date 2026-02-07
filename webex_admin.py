@@ -128,28 +128,21 @@ class WebexAdmin:
         return workspace_id
 
     def list_workspaces(self) -> dict:
-        result = {}
-        
         url_workspaces = f'https://webexapis.com/v1/workspaces?orgId={self.org_id}'
         workspaces = self._get_all_items(url_workspaces)
-
-        # Fetch devices to count them per workspace
-        device_counts = {}
-        url_devices = f'https://webexapis.com/v1/devices?orgId={self.org_id}'
-        devices = self._get_all_items(url_devices)
-
-        for device in devices:
-            ws_id = device.get("workspaceId")
-            if ws_id:
-                device_counts[ws_id] = device_counts.get(ws_id, 0) + 1
-
+        result = {}
         for workspace in workspaces:
             ws_id = workspace["id"]
             name = workspace["displayName"]
-            count = device_counts.get(ws_id, 0)
-            devices_string = "device" if count == 1 else "devices"
-            result[ws_id] = f"{name} - {count} {devices_string}"
-        
+            result[ws_id] = name
+        return result
+    
+    def list_workspaces_with_devices(self) -> dict:
+        result = {}
+        workspaces = self.list_workspaces()
+        for workspace_id, workspace_name in workspaces.items():
+            devices = self.get_devices(workspace_id)
+            result[workspace_id] = f"{workspace_name} - {len(devices)} device{'s' if devices and len(devices) != 1 else ''}" if devices is not None else workspace_name
         return result
     
     def get_activation_code(self, new_workspace_name, existing_workspace_id, model=None) -> str:
