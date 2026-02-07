@@ -2,6 +2,7 @@
 import base64
 from base64 import b64encode
 import requests
+from log_config import logger
 
 WDM_DEVICES_URL = "https://wdm-a.wbx2.com/wdm/api/v1/devices"
 
@@ -26,21 +27,21 @@ def get_device_info(bot_token):
             devices = response.json().get("devices", [])
             for device in devices:
                 if device.get("name") == DEVICE_DATA["name"]:
-                    print(f"Using existing device: {device.get('url')}")
+                    logger.info(f"Using existing device: {device.get('url')}")
                     result = device
                     break
         else:
             # no existing device, create one
-            print("No existing device found, creating a new one.")
+            logger.info("No existing device found, creating a new one.")
             create_response = requests.post(WDM_DEVICES_URL, headers=headers, json=DEVICE_DATA)
             if create_response.status_code == 200:
                 result = create_response.json()
-                print(f"Created new device: {result.get('url')}")
+                logger.info(f"Created new device: {result.get('url')}")
             else:
-                print(f"Failed to create device: {create_response.status_code} - {create_response.text}")
+                logger.error(f"Failed to create device: {create_response.status_code} - {create_response.text}")
         
     except Exception as e:
-        print(f"Error checking existing devices: {e}")
+        logger.error(f"Error checking existing devices: {e}")
     return result
 
 def activity_id_to_message_id(activity_id: str) -> str:
