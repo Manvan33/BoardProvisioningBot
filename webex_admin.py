@@ -68,6 +68,37 @@ class WebexAdmin:
             "Accept": "application/json"
         }
 
+    def _get_all_items(self, url):
+        items = []
+        while url:
+            try:
+                response = requests.get(
+                    url=url,
+                    headers=self.headers,
+                    proxies=self.proxies,
+                    verify=not self.use_proxy
+                )
+                if helper.is_json(response) and "items" in response.json().keys():
+                    items.extend(response.json()["items"])
+
+                    # Check for Link header for pagination
+                    links = response.headers.get("Link")
+                    next_url = None
+                    if links:
+                        parts = links.split(",")
+                        for part in parts:
+                            if 'rel="next"' in part:
+                                next_url = part.split(";")[0].strip("<> ")
+                                break
+                    url = next_url
+                else:
+                    print(f"Something went wrong. Response: {helper.load_text(response)}")
+                    break
+            except Exception as e:
+                print(f"Error fetching items: {e}")
+                break
+        return items
+
     def create_workspace(self, workspace_name) -> str:
         if not self.org_id:
             return ""
@@ -98,21 +129,26 @@ class WebexAdmin:
 
     def list_workspaces(self) -> dict:
         result = {}
-        try:
-            response = requests.get(
-                url=f'https://webexapis.com/v1/workspaces?orgId={self.org_id}',
-                headers=self.headers,
-                proxies=self.proxies,
-                verify=not self.use_proxy
-            )
-        except Exception:
-            return result
         
-        if helper.is_json(response) and "items" in response.json().keys():
-            for workspace in response.json()["items"]:
-                result[workspace["id"]] = workspace["displayName"]
-        else:
-            print(f"Something went wrong. Response: {helper.load_text(response)}")
+        url_workspaces = f'https://webexapis.com/v1/workspaces?orgId={self.org_id}'
+        workspaces = self._get_all_items(url_workspaces)
+
+        # Fetch devices to count them per workspace
+        device_counts = {}
+        url_devices = f'https://webexapis.com/v1/devices?orgId={self.org_id}'
+        devices = self._get_all_items(url_devices)
+
+        for device in devices:
+            ws_id = device.get("workspaceId")
+            if ws_id:
+                device_counts[ws_id] = device_counts.get(ws_id, 0) + 1
+
+        for workspace in workspaces:
+            ws_id = workspace["id"]
+            name = workspace["displayName"]
+            count = device_counts.get(ws_id, 0)
+            devices_string = "device" if count == 1 else "devices"
+            result[ws_id] = f"{name} - {count} {devices_string}"
         
         return result
     
