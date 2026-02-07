@@ -524,14 +524,14 @@ class BotWS:
                 self.api.messages.create(
                     roomId=room_id,
                     markdown=(
-                        f"Say *@{self.bot_name} hello*"
+                        f"### Say @{self.bot_name} hello"
                         " to provision a board. \n\nOther commands include:\n- "
-                        "`add` [email]: add an authorized user to your organization;"
+                        "`add` @person: add an authorized user to your organization;"
                         " add several at once separated with a space\n- "
                         "`details` [workspace name]: get details about a workspace (devices, status, IP); "
                         "use **ALL** to get details about all workspaces\n- "
                         "`info`: get info about the organization linked to this room\n- "
-                        "`remove`: [email]: remove an authorized user from your organization; "
+                        "`remove` @person: remove an authorized user from your organization; "
                         "remove several at once separated with a space\n- "
                         "`reinit`: change organization and/or re-authorize for this room\n\n "
                         "If you require further assistance, please contact "
@@ -539,7 +539,20 @@ class BotWS:
                     )
                 )
             case "remove":
-                for email in command[1:]:
+                emails_to_remove = set()
+                # Check for mentions
+                if hasattr(message_obj, 'mentionedPeople') and message_obj.mentionedPeople:
+                    for person_id in message_obj.mentionedPeople:
+                        if person_id == self.bot_id:
+                            continue
+                        email = self.get_email_from_id(person_id, room_id)
+                        if email:
+                            emails_to_remove.add(email)
+                # Check for emails in text
+                for word in command[1:]:
+                    if '@' in word and '.' in word:
+                        emails_to_remove.add(word)
+                for email in emails_to_remove:
                     success = self.remove_allowed_user(room_id, email)
                     if success:
                         self.api.messages.create(
