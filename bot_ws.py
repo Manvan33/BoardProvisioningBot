@@ -554,10 +554,24 @@ class BotWS:
                 org_name = room['managed_org'].get('org_name', 'N/A')
                 org_id = room['managed_org'].get('org_id', 'N/A')
                 room_admin_email = room['room_admin'].get('email', 'N/A')
-                authorized_users = [
-                    self.get_email_from_id(user_id, room_id)
-                    for user_id in room['room_authorized_users']
-                ]
+                authorized_users = []
+                if room['room_authorized_users']:
+                    try:
+                        chunk_size = 50
+                        user_ids = room['room_authorized_users']
+                        for i in range(0, len(user_ids), chunk_size):
+                            chunk = user_ids[i:i + chunk_size]
+                            try:
+                                people = self.api.people.list(id=",".join(chunk))
+                                for person in people:
+                                    if person.emails:
+                                        authorized_users.append(person.emails[0])
+                            except ApiError as e:
+                                # Log the error but continue processing remaining chunks
+                                print(f"Error fetching users for chunk starting at {i}: {e}")
+                                continue
+                    except Exception as e:
+                        print(f"Unexpected error processing authorized users: {e}")
                 authorized_users_str = ", ".join(authorized_users) if authorized_users else "N/A"
                 self.api.messages.create(
                     roomId=room_id,
