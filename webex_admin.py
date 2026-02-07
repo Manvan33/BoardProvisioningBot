@@ -138,11 +138,23 @@ class WebexAdmin:
         return result
     
     def list_workspaces_with_devices(self) -> dict:
+        counts = {}
         result = {}
         workspaces = self.list_workspaces()
+        devices = self.get_all_devices()
+        
+        for device in devices:
+            if "workspaceId" in device and device["workspaceId"] in workspaces:
+                workspace_id = device["workspaceId"]
+                if workspace_id in counts:
+                    counts[workspace_id] += 1
+                else:
+                    counts[workspace_id] = 1
         for workspace_id, workspace_name in workspaces.items():
-            devices = self.get_devices(workspace_id)
-            result[workspace_id] = f"{workspace_name} - {len(devices)} device{'s' if devices and len(devices) != 1 else ''}" if devices is not None else workspace_name
+            if workspace_id in counts:
+                result[workspace_id] = f"{workspace_name} ({counts[workspace_id]} device{'s' if counts[workspace_id] != 1 else ''})"
+            else:
+                result[workspace_id] = f"{workspace_name} (0 devices)"
         return result
     
     def get_activation_code(self, new_workspace_name, existing_workspace_id, model=None) -> str:
@@ -181,6 +193,23 @@ class WebexAdmin:
                 return id
         return ""
 
+    
+    def get_all_devices(self) -> list:
+        try:
+            response = requests.get(
+                url=f'https://webexapis.com/v1/devices',
+                headers=self.headers,   
+                proxies=self.proxies,
+                verify=not self.use_proxy
+            )
+            if helper.is_json(response) and "items" in response.json().keys():
+                return response.json()["items"]
+            else:
+                print(f"Something went wrong. Response: {helper.load_text(response)}")
+                return None
+        except Exception:
+            return None
+    
     def get_devices(self, workspace_id) -> list:
         if not self.org_id:
             return None
