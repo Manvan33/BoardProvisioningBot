@@ -32,6 +32,8 @@ from urllib.parse import urlencode, urlparse, parse_qs
 import requests
 from dotenv import load_dotenv
 
+from log_config import logger
+
 # Load environment variables
 load_dotenv()
 
@@ -232,7 +234,7 @@ class OAuthFlow:
         
         with open(filepath, "w") as f:
             json.dump(self.tokens, f, indent=2)
-        print(f"Tokens saved to {filepath}")
+        logger.info(f"Tokens saved to {filepath}")
     
     def load_tokens(self, filepath: str = TOKEN_FILE) -> dict:
         """Load tokens from a JSON file."""
@@ -255,8 +257,8 @@ class OAuthFlow:
         ) as httpd:
             httpd.timeout = timeout
             
-            print(f"Waiting for OAuth callback on {self.redirect_uri}...")
-            print(f"(Timeout: {timeout} seconds)")
+            logger.info(f"Waiting for OAuth callback on {self.redirect_uri}...")
+            logger.info(f"(Timeout: {timeout} seconds)")
             
             while OAuthCallbackHandler.auth_code is None and OAuthCallbackHandler.error is None:
                 httpd.handle_request()
@@ -283,30 +285,30 @@ class OAuthFlow:
         # Generate authorization URL
         auth_url = self.get_authorization_url()
         
-        print("\n" + "=" * 60)
-        print("WEBEX OAUTH AUTHORIZATION")
-        print("=" * 60)
-        print(f"\nPlease visit this URL to authorize the application:\n")
-        print(auth_url)
-        print()
+        logger.info("\n" + "=" * 60)
+        logger.info("WEBEX OAUTH AUTHORIZATION")
+        logger.info("=" * 60)
+        logger.info(f"\nPlease visit this URL to authorize the application:\n")
+        logger.info(auth_url)
+        logger.info("")
         
         if open_browser:
-            print("Opening browser...")
+            logger.info("Opening browser...")
             webbrowser.open(auth_url)
         
         # Wait for callback
         auth_code = self.run_callback_server(timeout=timeout)
         
-        print("\nAuthorization code received!")
-        print("Exchanging code for tokens...")
+        logger.info("\nAuthorization code received!")
+        logger.info("Exchanging code for tokens...")
         
         # Exchange code for tokens
         tokens = self.exchange_code_for_tokens(auth_code)
         
-        print("\nTokens received successfully!")
-        print(f"  Access Token: {tokens['access_token'][:20]}...")
-        print(f"  Expires In: {tokens.get('expires_in', 'N/A')} seconds")
-        print(f"  Refresh Token: {tokens.get('refresh_token', 'N/A')[:20]}...")
+        logger.info("\nTokens received successfully!")
+        logger.info(f"  Access Token: {tokens['access_token'][:20]}...")
+        logger.info(f"  Expires In: {tokens.get('expires_in', 'N/A')} seconds")
+        logger.info(f"  Refresh Token: {tokens.get('refresh_token', 'N/A')[:20]}...")
         
         # Save tokens
         self.save_tokens()
@@ -316,31 +318,31 @@ class OAuthFlow:
 
 def main():
     """Run the OAuth flow from command line."""
-    print("Webex Integration OAuth Flow")
-    print("-" * 40)
+    logger.info("Webex Integration OAuth Flow")
+    logger.info("-" * 40)
     
     try:
         oauth = OAuthFlow()
         tokens = oauth.run_flow()
         
-        print("\n" + "=" * 60)
-        print("SUCCESS!")
-        print("=" * 60)
-        print(f"\nTokens have been saved to {TOKEN_FILE}")
-        print("\nYou can now use these tokens in your application.")
+        logger.info("\n" + "=" * 60)
+        logger.info("SUCCESS!")
+        logger.info("=" * 60)
+        logger.info(f"\nTokens have been saved to {TOKEN_FILE}")
+        logger.info("\nYou can now use these tokens in your application.")
         
         return tokens
         
     except ValueError as e:
-        print(f"\nConfiguration Error: {e}")
-        print("\nPlease ensure you have set the following in your .env file:")
-        print("  OAUTH_CLIENT_ID=your_client_id")
-        print("  OAUTH_CLIENT_SECRET=your_client_secret")
-        print("  OAUTH_REDIRECT_URI=http://localhost:8080/callback  (optional)")
+        logger.error(f"\nConfiguration Error: {e}")
+        logger.error("\nPlease ensure you have set the following in your .env file:")
+        logger.error("  OAUTH_CLIENT_ID=your_client_id")
+        logger.error("  OAUTH_CLIENT_SECRET=your_client_secret")
+        logger.error("  OAUTH_REDIRECT_URI=http://localhost:8080/callback  (optional)")
         sys.exit(1)
         
     except Exception as e:
-        print(f"\nError: {e}")
+        logger.error(f"\nError: {e}")
         sys.exit(1)
 
 
