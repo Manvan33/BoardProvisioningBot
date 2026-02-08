@@ -80,9 +80,10 @@ class BotWS:
         return helper.make_code_card(workspaces)
     
     def store_tokens(self, room_id: str, state: str, access_token: str, refresh_token: str, expires_at: datetime.datetime) -> None:
+        room_uuid = webex_utils.base64_to_uuid(room_id)
         room = self.storage.get_room(room_id)
         if not room:
-            logger.error("Error: Room not found in storage.")
+            logger.error(f"[Room: {room_uuid}] Error: Room not found in storage.")
             return
         auth_message_id = self.active_auth_requests.get(state, "")
         if auth_message_id:
@@ -92,7 +93,7 @@ class BotWS:
             my_token=access_token
         )
         if not webex_admin.token_is_valid():
-            logger.error("Error: Provided access token is not valid.")
+            logger.error(f"[Room: {room_uuid}] Error: Provided access token is not valid.")
             self.api.messages.create(
                 roomId=room_id,
                 markdown=f"{webex_admin.name}({webex_admin.my_email}) doesn't have admin rights on organization **{webex_admin.org_name}** or the token is invalid.\nPlease try authorizing again."
@@ -111,7 +112,7 @@ class BotWS:
             markdown=f"Successfully authorized organization **{webex_admin.org_name}** with admin {webex_admin.name}({webex_admin.my_email}).  You can now request activation codes by saying *@{self.bot_name} hello*."
         )
         self.storage.save()
-        logger.info(f"Stored tokens for room {room_id}")
+        logger.info(f"[Room: {room_uuid}] [User: {webex_admin.my_email}] Stored tokens for room")
 
     def get_or_create_room(self, room_id: str) -> dict:
         room = self.storage.get_room(room_id)
@@ -225,7 +226,8 @@ class BotWS:
             return
         
         if person_id and webex_utils.is_bot_id(self.bot_id, person_id):
-            logger.info(f"Bot was added to room {room_id}")
+            room_uuid = webex_utils.base64_to_uuid(room_id)
+            logger.info(f"[Room: {room_uuid}] Bot was added to room")
             self.handle_added(room_id, admin_id)
 
     async def _handle_membership_leave_event(self, activity: dict) -> None:
@@ -239,7 +241,8 @@ class BotWS:
             return
         
         if person_id and webex_utils.is_bot_id(self.bot_id, person_id):
-            logger.info(f"Bot was removed from room {room_id}")
+            room_uuid = webex_utils.base64_to_uuid(room_id)
+            logger.info(f"[Room: {room_uuid}] Bot was removed from room")
             self.handle_removed(room_id)
 
     def _activity_id_to_attachment_action_id(self, activity_id: str) -> str:
@@ -274,12 +277,13 @@ class BotWS:
         return person_id == self.bot_id
 
     def does_room_manage_org(self, room_id: str) -> bool:
+        room_uuid = webex_utils.base64_to_uuid(room_id)
         room = self.storage.get_room(room_id)
         if not room:
-            logger.error("Error: Room not found in storage.")
+            logger.error(f"[Room: {room_uuid}] Error: Room not found in storage.")
             raise Exception("Room not found in storage.")
         if room['managed_org'].get('org_id', ''):
-            logger.info("Room has an authorized org.")
+            logger.info(f"[Room: {room_uuid}] Room has an authorized org.")
             return True
         else:
             request_id = secrets.token_urlsafe(32)
@@ -292,16 +296,17 @@ class BotWS:
             return False
     
     def remove_managed_org(self, room_id: str) -> None:
+        room_uuid = webex_utils.base64_to_uuid(room_id)
         room = self.storage.get_room(room_id)
         if not room:
-            logger.error("Error: Room not found in storage.")
+            logger.error(f"[Room: {room_uuid}] Error: Room not found in storage.")
             return
         room['managed_org'] = {
             'org_id': '',
             'org_name': '',
             'oauth_tokens': {}
         }
-        logger.info(f"Removed managed organization from room {room_id}")
+        logger.info(f"[Room: {room_uuid}] Removed managed organization from room")
 
     def get_email_from_id(self, person_id: str, room_id: str) -> str:
         try:
@@ -322,13 +327,14 @@ class BotWS:
             return ""
 
     def set_room_admin(self, room_id: str, user_email: str, quiet=False) -> bool:
+        room_uuid = webex_utils.base64_to_uuid(room_id)
         room = self.storage.get_room(room_id)
         if not room:
-            logger.error("Error: Room not found in storage.")
+            logger.error(f"[Room: {room_uuid}] Error: Room not found in storage.")
             return False
         admin_id = self.get_id_from_email(user_email, room_id)
         if not admin_id:
-            logger.error(f"Error: User {user_email} not found in room {room_id}.")
+            logger.error(f"[Room: {room_uuid}] [User: {user_email}] Error: User not found in room.")
             return False
         room['room_admin']['email'] = user_email
         room['room_admin']['id'] = admin_id
@@ -340,43 +346,46 @@ class BotWS:
         return True
 
     def add_allowed_user(self, room_id: str, user_email: str) -> bool:
+        room_uuid = webex_utils.base64_to_uuid(room_id)
         room = self.storage.get_room(room_id)
         if not room:
-            logger.error("Error: Room not found in storage.")
+            logger.error(f"[Room: {room_uuid}] Error: Room not found in storage.")
             return False
         try:
             memberships = list(self.api.memberships.list(roomId=room_id, personEmail=user_email))
             if not memberships:
-                logger.error(f"Error: User {user_email} not found in room {room_id}.")
+                logger.error(f"[Room: {room_uuid}] [User: {user_email}] Error: User not found in room.")
                 return False
             room['room_authorized_users'].append(memberships[0].personId)
         except ApiError:
-            logger.error(f"Error: Could not retrieve memberships for user {user_email} in room {room_id}.")
+            logger.error(f"[Room: {room_uuid}] [User: {user_email}] Error: Could not retrieve memberships for user.")
             return False
         return True
     
     def remove_allowed_user(self, room_id: str, user_email: str) -> bool:
+        room_uuid = webex_utils.base64_to_uuid(room_id)
         room = self.storage.get_room(room_id)
         if not room:
-            logger.error("Error: Room not found in storage.")
+            logger.error(f"[Room: {room_uuid}] Error: Room not found in storage.")
             return False
         admin_id = self.get_id_from_email(user_email, room_id)
         if not admin_id:
-            logger.error(f"Error: User {user_email} not found in room {room_id}.")
+            logger.error(f"[Room: {room_uuid}] [User: {user_email}] Error: User not found in room.")
             return False
         person_id = admin_id
         if person_id in room['room_authorized_users']:
             room['room_authorized_users'].remove(person_id)
             return True
         else:
-            logger.error(f"Error: User {user_email} is not in the authorized users list for room {room_id}.")
+            logger.error(f"[Room: {room_uuid}] [User: {user_email}] Error: User is not in the authorized users list for room.")
             return False
 
     def handle_added(self, room_id: str, admin_id: str) -> None:
+        room_uuid = webex_utils.base64_to_uuid(room_id)
         room_details = self.api.rooms.get(room_id)
         admin_email = self.get_email_from_id(admin_id, room_id)
         if not admin_email or not room_details:
-            logger.error("Error: Could not get admin email or room details.")
+            logger.error(f"[Room: {room_uuid}] Error: Could not get admin email or room details.")
             return
         self.storage.add_room(
             room_id,
@@ -390,18 +399,20 @@ class BotWS:
         self.does_room_manage_org(room_id)
 
     def handle_removed(self, room_id: str) -> None:
+        room_uuid = webex_utils.base64_to_uuid(room_id)
         self.storage.remove_room(room_id)
-        logger.info(f"Cleaned up state for room {room_id}")
+        logger.info(f"[Room: {room_uuid}] Cleaned up state for room")
 
     def is_user_authorized(self, room_id: str, actor_id: str) -> bool:
+        room_uuid = webex_utils.base64_to_uuid(room_id)
         room = self.storage.get_room(room_id)
         if not room:
-            logger.error("Error: Room not found in storage.")
+            logger.error(f"[Room: {room_uuid}] Error: Room not found in storage.")
             return False
         room_admin = room['room_admin']
         # if room_admin email and id are empty, authorize the first user to send a message
         if not room_admin.get('email') and not room_admin.get('id'):
-            logger.info("No room admin set, authorizing first user to send a message.")
+            logger.info(f"[Room: {room_uuid}] No room admin set, authorizing first user to send a message.")
             return self.set_room_admin(room_id, self.get_email_from_id(actor_id, room_id))
         authorized = actor_id in room['room_authorized_users'] or actor_id == room_admin['id']
         if not authorized:
@@ -418,7 +429,9 @@ class BotWS:
         refresh_token = tokens.get('refresh_token')
         expires_at = datetime.datetime.fromisoformat(tokens.get('expires_at', '1970-01-01T00:00:00'))
         if not access_token or time() >= expires_at.timestamp():
-            logger.warning("Access token missing or expired.")
+            room_id = room.get('room_id', '')
+            room_uuid = webex_utils.base64_to_uuid(room_id)
+            logger.warning(f"[Room: {room_uuid}] Access token missing or expired.")
             tokens = self.oauth.refresh_tokens(refresh_token=refresh_token)
             room['managed_org']['oauth_tokens'] = tokens
             access_token = room['managed_org']['oauth_tokens']['access_token']
@@ -433,9 +446,10 @@ class BotWS:
             logger.error(f"Failed to get attachment action: {e}")
             return
         
+        room_uuid = webex_utils.base64_to_uuid(room_id)
         room = self.storage.get_room(room_id)
         if not room:
-            logger.error("Error: Room not found in storage.")
+            logger.error(f"[Room: {room_uuid}] Error: Room not found in storage.")
             return
         
         webex_admin = WebexAdmin(
@@ -462,7 +476,8 @@ class BotWS:
             return
         
         activation_code = helper.split_code(activation_code)
-        logger.info("Sending activation code.")
+        user_email = self.get_email_from_id(actor_id, room_id)
+        logger.info(f"[Room: {room_uuid}] [User: {user_email}] Sending activation code.")
         self.api.messages.create(
             roomId=room_id,
             markdown=f"Here's your activation code: {activation_code} for workspace *{workspace_name}*"
@@ -483,7 +498,13 @@ class BotWS:
             words = words[1:]
         command = words
         
-        logger.info(f"Command: {' '.join(command)}")
+        room_uuid = webex_utils.base64_to_uuid(room_id)
+        # Try to get user email
+        user_email = message_obj.personEmail if hasattr(message_obj, 'personEmail') else ""
+        if not user_email:
+            user_email = self.get_email_from_id(actor_id, room_id)
+
+        logger.info(f"[Room: {room_uuid}] [User: {user_email}] Command: {' '.join(command)}")
         
         match command[0]:
             case "reinit" | "reinitialize":
@@ -565,7 +586,7 @@ class BotWS:
             case "info":
                 room = self.storage.get_room(room_id)
                 if not room:
-                    logger.error("Error: Room not found in storage.")
+                    logger.error(f"[Room: {room_uuid}] Error: Room not found in storage.")
                     return
                 org_name = room['managed_org'].get('org_name', 'N/A')
                 org_id = room['managed_org'].get('org_id', 'N/A')
@@ -584,10 +605,10 @@ class BotWS:
                                         authorized_users.append(person.emails[0])
                             except ApiError as e:
                                 # Log the error but continue processing remaining chunks
-                                logger.error(f"Error fetching users for chunk starting at {i}: {e}")
+                                logger.error(f"[Room: {room_uuid}] Error fetching users for chunk starting at {i}: {e}")
                                 continue
                     except Exception as e:
-                        logger.error(f"Unexpected error processing authorized users: {e}")
+                        logger.error(f"[Room: {room_uuid}] Unexpected error processing authorized users: {e}")
                 authorized_users_str = ", ".join(authorized_users) if authorized_users else "N/A"
                 self.api.messages.create(
                     roomId=room_id,
@@ -603,7 +624,7 @@ class BotWS:
             case "details":
                 room = self.storage.get_room(room_id)
                 if not room:
-                    logger.error("Error: Room not found in storage.")
+                    logger.error(f"[Room: {room_uuid}] Error: Room not found in storage.")
                     return
 
                 if len(command) < 2:

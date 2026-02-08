@@ -10,6 +10,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from oauth import OAuthFlow, DEFAULT_SCOPES, WEBEX_AUTH_URL
 from log_config import logger
+import webex_utils
 
 
 class OAuthManager:
@@ -35,20 +36,6 @@ class OAuthManager:
             autoescape=select_autoescape()
         )
 
-    
-    def get_uuid_from_id(self, id: str) -> str:
-        try:
-            # Add padding just in case
-            missing_padding = len(id) % 4
-            if missing_padding:
-                id += '=' * (4 - missing_padding)
-            decoded = base64.b64decode(id).decode("utf-8")
-            if "/ROOM/" in decoded:
-                return decoded.split('/')[-1]
-            return ""
-        except Exception as e:
-            logger.error(f"Error decoding room ID: {e}")
-            return ""
 
     def create_auth_url(self, room_id: str, request_id: str) -> str:
         state = request_id
@@ -131,7 +118,7 @@ class OAuthManager:
                 datetime.datetime.fromtimestamp(time.time() + expires_in) if expires_in else None
             )
 
-            space_uuid = self.get_uuid_from_id(room_id)
+            space_uuid = webex_utils.base64_to_uuid(room_id)
             template = self.jinja_env.get_template("oauth_success.html")
 
             return web.Response(
@@ -141,7 +128,8 @@ class OAuthManager:
             )
             
         except Exception as e:
-            logger.error(f"OAuth callback error: {e}")
+            space_uuid = webex_utils.base64_to_uuid(room_id)
+            logger.error(f"[Room: {space_uuid}] OAuth callback error: {e}")
             template = self.jinja_env.get_template("oauth_error.html")
             return web.Response(
                 status=500,
