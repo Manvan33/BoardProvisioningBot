@@ -230,6 +230,30 @@ class WebexAdmin:
             print(f"Something went wrong. Response: {helper.load_text(response)}")
             return None
 
+    def get_device_uptime(self, device_id: str) -> str:
+        if not self.org_id:
+            return ""
+
+        try:
+            response = requests.get(
+                url=f'https://webexapis.com/v1/xapi/status?deviceId={device_id}&name=SystemUnit.Uptime',
+                headers=self.headers,
+                proxies=self.proxies,
+                verify=not self.use_proxy
+            )
+
+            if helper.is_json(response):
+                data = response.json()
+                result = data.get("result", {})
+                uptime = result.get("SystemUnit", {}).get("Uptime")
+                if uptime:
+                    return str(uptime)
+
+            return ""
+        except Exception as e:
+            print(f"Error fetching uptime: {e}")
+            return ""
+
     def save(self):
         return {
             "admin_token": self.my_token,
