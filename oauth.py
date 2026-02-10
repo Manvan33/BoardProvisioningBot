@@ -51,7 +51,8 @@ DEFAULT_SCOPES = [
     "spark-admin:organizations_read",
     "spark-admin:workspaces_read",
     "spark-admin:devices_write",
-    "spark-compliance:rooms_read"
+    "spark-compliance:rooms_read",
+    "spark:xapi_statuses"
 ]
 
 
