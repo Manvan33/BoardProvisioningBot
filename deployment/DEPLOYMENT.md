@@ -36,6 +36,16 @@ The bot can be deployed either using Docker (recommended) or as a native systemd
    ```
 
 5. **Run the Container**:
+
+   **Using Docker Compose with Traefik (Recommended for production)**
+   A `docker-compose.yml` file is provided at the root of the project pre-configured for Traefik.
+   
+   Ensure that the `webex.gsp-france-lab.com` domain defined in `docker-compose.yml` matches your setup, then start the service:
+   ```bash
+   docker compose up -d
+   ```
+
+   **Alternatively, using Docker Run**:
    You should persist the bot's data (so authorization isn't lost on restart) and map the OAuth port (default internally is 9999) to the host machine.
    ```bash
    docker run -d --name boardbot \
@@ -48,8 +58,7 @@ The bot can be deployed either using Docker (recommended) or as a native systemd
    ```
 
 6. **Reverse Proxy (Optional but Recommended)**:
-   You will likely still want to put a reverse proxy like nginx, Caddy, or an ALB in front of port 9999 to handle SSL (HTTPS), as Webex OAuth redirects must use HTTPS. 
-
+   If you aren't using Traefik as described above, you will likely still want to put a reverse proxy like nginx, Caddy, or an ALB in front of port 9999 to handle SSL (HTTPS), as Webex OAuth redirects must use HTTPS.
 ---
 
 ### Method 2: Systemd & Nginx Deployment

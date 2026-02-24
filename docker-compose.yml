@@ -1,0 +1,27 @@
+services:
+  boardbot:
+    build: .
+    container_name: boardbot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - OAUTH_HOST=0.0.0.0
+    volumes:
+      - ./bot_data.json:/app/bot_data.json
+    networks:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.boardbot_http.entrypoints=web"
+      - "traefik.http.routers.boardbot_http.rule=Host(`webex.gsp-france-lab.com`)"
+      - "traefik.http.routers.boardbot_http.middlewares=https_redirect"
+      - "traefik.http.routers.boardbot_https.entrypoints=web-secure"
+      - "traefik.http.routers.boardbot_https.rule=Host(`webex.gsp-france-lab.com`)"
+      - "traefik.http.routers.boardbot_https.tls.domains[0].main=*.gsp-france-lab.com"
+      # Point to the internal port 9999 that the oauth server listens on
+      - "traefik.http.services.boardbot.loadbalancer.server.port=9999"
+
+networks:
+  traefik:
+    external: true
