@@ -13,7 +13,48 @@ This guide covers deploying the Board Provisioning Bot on a Linux VM using syste
 
 ## Deployment Steps
 
-### 1. Create Service User
+The bot can be deployed either using Docker (recommended) or as a native systemd service.
+
+### Method 1: Docker Deployment (Recommended)
+
+1. **Install Docker** on your host machine.
+2. **Clone the repository**:
+   ```bash
+   git clone https://github.com/yourusername/BoardProvisioningBot.git
+   cd BoardProvisioningBot
+   ```
+3. **Configure Environment Variables**:
+   ```bash
+   cp .env.example .env
+   nano .env
+   ```
+   Provide your specific configs (Bot Token, OAuth Client ID/Secret, OAuth Redirect URI). Ensure the `OAUTH_REDIRECT_URI` matches your domain name (e.g., `https://your-domain.com/oauth/callback`).
+
+4. **Build the Docker Image**:
+   ```bash
+   docker build -t boardbot .
+   ```
+
+5. **Run the Container**:
+   You should persist the bot's data (so authorization isn't lost on restart) and map the OAuth port (default internally is 9999) to the host machine.
+   ```bash
+   docker run -d --name boardbot \
+     --restart unless-stopped \
+     --env-file .env \
+     -p 9999:9999 \
+     -e OAUTH_HOST=0.0.0.0 \
+     -v $(pwd)/bot_data.json:/app/bot_data.json \
+     boardbot
+   ```
+
+6. **Reverse Proxy (Optional but Recommended)**:
+   You will likely still want to put a reverse proxy like nginx, Caddy, or an ALB in front of port 9999 to handle SSL (HTTPS), as Webex OAuth redirects must use HTTPS. 
+
+---
+
+### Method 2: Systemd & Nginx Deployment
+
+#### 1. Create Service User
 
 ```bash
 # Create a dedicated user for the bot (if not exists)

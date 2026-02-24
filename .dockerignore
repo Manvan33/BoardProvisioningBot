@@ -1,0 +1,14 @@
+.git
+.vscode
+.opencode
+.venv
+__pycache__
+*.pyc
+.env
+bot_data.json
+webex_users_*.csv
+oauth_tokens.json
+new_data.json
+t.json
+*~
+*.swp

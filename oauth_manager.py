@@ -6,6 +6,7 @@ import secrets
 import time
 from urllib.parse import urlencode, urlparse
 from aiohttp import web
+import os
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from oauth import OAuthFlow, DEFAULT_SCOPES, WEBEX_AUTH_URL
@@ -154,10 +155,12 @@ class OAuthManager:
         
         self.http_runner = web.AppRunner(app)
         await self.http_runner.setup()
+        host = os.getenv("OAUTH_HOST", "0.0.0.0")
+        port = int(os.getenv("OAUTH_PORT", "9999"))
         self.http_site = web.TCPSite(
             self.http_runner,
-            '127.0.0.1',
-            9999
+            host,
+            port
         )
         await self.http_site.start()
         print(f"OAuth callback server running on {self.redirect_uri}")
