@@ -6,6 +6,7 @@ services:
     env_file: .env
     environment:
       - OAUTH_HOST=0.0.0.0
+      - PYTHONUNBUFFERED=1
     volumes:
       - ./bot_data.json:/app/bot_data.json
     networks:

@@ -21,6 +21,7 @@ RUN uv sync --frozen --no-dev
 
 # Put the virtual environment in PATH
 ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
 
 # Expose the default OAuth callback port
 EXPOSE 9999
