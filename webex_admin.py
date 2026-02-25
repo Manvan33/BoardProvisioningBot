@@ -3,6 +3,7 @@ import requests
 import json
 from webexteamssdk import WebexTeamsAPI, ApiError
 import helper
+from log_config import logger
 
 
 class WebexAdmin:
@@ -28,7 +29,7 @@ class WebexAdmin:
             self.org_id = me.orgId
             self.org_name = self._get_org_name()
         except ApiError:
-            print('Invalid token provided.')
+            logger.error('Invalid token provided.')
             pass
 
     def _get_org_name(self) -> str:
@@ -92,10 +93,10 @@ class WebexAdmin:
                                 break
                     url = next_url
                 else:
-                    print(f"Something went wrong. Response: {helper.load_text(response)}")
+                    logger.error(f"Something went wrong. Response: {helper.load_text(response)}")
                     break
             except Exception as e:
-                print(f"Error fetching items: {e}")
+                logger.error(f"Error fetching items: {e}")
                 break
         return items
 
@@ -103,7 +104,7 @@ class WebexAdmin:
         if not self.org_id:
             return ""
         
-        print(f"Creating workspace {workspace_name}.")
+        logger.info(f"Creating workspace {workspace_name}.")
         payload = {
             "displayName": workspace_name,
             "orgId": self.org_id
@@ -122,7 +123,7 @@ class WebexAdmin:
         if helper.is_json(response):
             workspace_id = json.loads(response.content)["id"]
         else:
-            print(f"Something went wrong. Response: {helper.load_text(response)}")
+            logger.error(f"Something went wrong. Response: {helper.load_text(response)}")
             return ""
         
         return workspace_id
@@ -183,7 +184,7 @@ class WebexAdmin:
             activation_code = json.loads(response.content)["code"]
             return activation_code
         else:
-            print(f"Something went wrong. Response: {helper.load_text(response)}")
+            logger.error(f"Something went wrong. Response: {helper.load_text(response)}")
             return ""
 
     def get_workspace_id(self, name) -> str:
@@ -205,7 +206,7 @@ class WebexAdmin:
             if helper.is_json(response) and "items" in response.json().keys():
                 return response.json()["items"]
             else:
-                print(f"Something went wrong. Response: {helper.load_text(response)}")
+                logger.error(f"Something went wrong. Response: {helper.load_text(response)}")
                 return None
         except Exception:
             return None
@@ -227,7 +228,7 @@ class WebexAdmin:
         if helper.is_json(response) and "items" in response.json().keys():
             return response.json()["items"]
         else:
-            print(f"Something went wrong. Response: {helper.load_text(response)}")
+            logger.error(f"Something went wrong. Response: {helper.load_text(response)}")
             return None
 
     def save(self):
