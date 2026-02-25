@@ -647,6 +647,32 @@ class BotWS:
                 self.api.messages.delete(messageId=message.id)
                 
 
+    def _format_uptime(self, uptime_seconds: str) -> str:
+        try:
+            total_seconds = int(float(uptime_seconds))
+        except (ValueError, TypeError):
+            return ""
+
+        if total_seconds < 0:
+            return ""
+
+        days = total_seconds // 86400
+        hours = (total_seconds % 86400) // 3600
+        minutes = (total_seconds % 3600) // 60
+
+        parts = []
+        if days > 0:
+            parts.append(f"{days}d")
+        if hours > 0:
+            parts.append(f"{hours}h")
+        if minutes > 0:
+            parts.append(f"{minutes}m")
+
+        if not parts:
+            return "< 1m"
+
+        return " ".join(parts)
+
     def workspace_details_string(self, workspace_id: str, workspace_name: str, webex_admin) -> str:
         devices = webex_admin.get_devices(workspace_id)
         if devices is None:
@@ -676,9 +702,19 @@ class BotWS:
                         except ValueError:
                             pass
                         # Phone emoji to call
+
+                uptime_str = ""
+                # Only try to fetch uptime if device is connected
+                conn_status = device.get("connectionStatus", "Unknown")
+                if conn_status == "connected":
+                    uptime_val = webex_admin.get_device_uptime(device.get("id"))
+                    formatted_uptime = self._format_uptime(uptime_val)
+                    if formatted_uptime:
+                        uptime_str = f"- uptime: {formatted_uptime} "
+
                 call_link = f"[📞 ](tel:{device.get('primarySipUrl')})"
                 ip = device.get("ip", "0.0.0.0")
-                msg += f"- {status} {device_link} - {device_mac} | {ip} {last_seen}- {call_link}\n"
+                msg += f"- {status} {device_link} - {device_mac} | {ip} {last_seen}{uptime_str}- {call_link}\n"
             return msg
     
     async def _run_loop(self) -> None:
