@@ -426,6 +426,12 @@ class BotWS:
         expires_at = datetime.datetime.fromisoformat(tokens.get('expires_at', '1970-01-01T00:00:00'))
         if not access_token or time() >= expires_at.timestamp():
             print("Access token missing or expired.")
+            if not refresh_token:
+                room_id = room.get('room_id', '')
+                print(f"No refresh token available, triggering reinit for room {room_id}")
+                if room_id:
+                    self.does_room_manage_org(room_id)
+                raise TokenRefreshError()
             try:
                 tokens = self.oauth.refresh_tokens(refresh_token=refresh_token)
             except Exception as e:
