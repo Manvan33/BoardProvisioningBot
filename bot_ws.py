@@ -27,6 +27,11 @@ from oauth_manager import OAuthManager
 from storage_manager import StorageManager
 import webex_utils
 
+class TokenRefreshError(Exception):
+    """Raised when a token refresh fails with an invalid/expired token; reinit has already been triggered."""
+    pass
+
+
 class BotWS:
 
     def __init__(self, bot_token, storage: StorageManager):
@@ -171,6 +176,8 @@ class BotWS:
                     
         except json.JSONDecodeError as e:
             print(f"Failed to parse WebSocket message: {e}")
+        except TokenRefreshError:
+            pass  # reinit already triggered; OAuth link sent to room
         except Exception as e:
             print(f"Error processing message: {e}")
             import traceback
@@ -428,6 +435,7 @@ class BotWS:
                     if room_id:
                         self.remove_managed_org(room_id)
                         self.does_room_manage_org(room_id)
+                    raise TokenRefreshError() from e
                 raise
             room['managed_org']['oauth_tokens'] = tokens
             access_token = room['managed_org']['oauth_tokens']['access_token']
