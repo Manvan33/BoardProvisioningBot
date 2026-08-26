@@ -3,17 +3,20 @@ from unittest.mock import MagicMock, patch
 import sys
 import os
 
-# Add parent directory to path so we can import bot_ws
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Mock dependencies that might be imported at module level or problematic
+# Mocking modules before imports
+sys.modules['dotenv'] = MagicMock()
+sys.modules['websockets'] = MagicMock()
+sys.modules['websockets.exceptions'] = MagicMock()
+sys.modules['webexteamssdk'] = MagicMock()
 sys.modules['helper'] = MagicMock()
 sys.modules['oauth_manager'] = MagicMock()
 sys.modules['storage_manager'] = MagicMock()
 sys.modules['webex_utils'] = MagicMock()
 sys.modules['webex_admin'] = MagicMock()
 
-# Now import BotWS
+# Add parent directory to path so we can import bot_ws
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from bot_ws import BotWS
 
 class TestBotLogic(unittest.TestCase):
@@ -40,7 +43,7 @@ class TestBotLogic(unittest.TestCase):
                 self.mock_room = {
                     'room_authorized_users': [],
                     'managed_org': {},
-                    'room_admin': {}
+                    'room_admin': {'id': 'admin_id', 'email': 'admin@example.com'}
                 }
                 self.mock_storage.get_room.return_value = self.mock_room
 
@@ -52,10 +55,10 @@ class TestBotLogic(unittest.TestCase):
         actor_id = "actor123"
         email = "user@example.com"
 
-        # Mock API calls for add_allowed_user
-        # add_allowed_user calls memberships.list(personEmail=email)
+        # Mock memberships.list to return the user
         m = MagicMock()
         m.personId = "user_id_123"
+        m.personEmail = email
         self.mock_api.memberships.list.return_value = [m]
 
         # Mock message object
@@ -65,8 +68,8 @@ class TestBotLogic(unittest.TestCase):
 
         self.bot.handle_command(message_obj, room_id, actor_id)
 
-        # Verify API called with email
-        self.mock_api.memberships.list.assert_called_with(roomId=room_id, personEmail=email)
+        # Verify API called for all memberships
+        self.mock_api.memberships.list.assert_called_with(roomId=room_id)
         # Verify user added to storage
         self.assertIn("user_id_123", self.mock_room['room_authorized_users'])
 
@@ -76,19 +79,13 @@ class TestBotLogic(unittest.TestCase):
         email1 = "user1@example.com"
         email2 = "user2@example.com"
 
-        # Handle multiple calls
-        def list_memberships(roomId=None, personEmail=None, **kwargs):
-            if personEmail == email1:
-                m = MagicMock()
-                m.personId = "id1"
-                return [m]
-            if personEmail == email2:
-                m = MagicMock()
-                m.personId = "id2"
-                return [m]
-            return []
-
-        self.mock_api.memberships.list.side_effect = list_memberships
+        m1 = MagicMock()
+        m1.personId = "id1"
+        m1.personEmail = email1
+        m2 = MagicMock()
+        m2.personId = "id2"
+        m2.personEmail = email2
+        self.mock_api.memberships.list.return_value = [m1, m2]
 
         message_obj = MagicMock()
         message_obj.text = f"add {email1} {email2}"
@@ -105,23 +102,10 @@ class TestBotLogic(unittest.TestCase):
         user_id = "user_id_123"
         email = "user@example.com"
 
-        # Mock API calls
-        # 1. get_email_from_id calls memberships.list(personId=user_id)
-        # 2. add_allowed_user calls memberships.list(personEmail=email)
-
-        def list_memberships(roomId=None, personId=None, personEmail=None, **kwargs):
-            if personId == user_id:
-                m = MagicMock()
-                m.personEmail = email
-                m.personId = user_id
-                return [m]
-            if personEmail == email:
-                m = MagicMock()
-                m.personId = user_id
-                return [m]
-            return []
-
-        self.mock_api.memberships.list.side_effect = list_memberships
+        m = MagicMock()
+        m.personId = user_id
+        m.personEmail = email
+        self.mock_api.memberships.list.return_value = [m]
 
         message_obj = MagicMock()
         message_obj.text = "add John Doe"
@@ -129,7 +113,6 @@ class TestBotLogic(unittest.TestCase):
 
         self.bot.handle_command(message_obj, room_id, actor_id)
 
-        # Verify both calls happened (we can inspect mock calls or just verify outcome)
         self.assertIn(user_id, self.mock_room['room_authorized_users'])
 
     def test_add_mixed_mentions_and_text(self):
@@ -141,23 +124,13 @@ class TestBotLogic(unittest.TestCase):
         email_2 = "user2@example.com" # From text
         id_2 = "user_id_2"
 
-        def list_memberships(roomId=None, personId=None, personEmail=None, **kwargs):
-            if personId == user_id_1:
-                m = MagicMock()
-                m.personEmail = email_1
-                m.personId = user_id_1
-                return [m]
-            if personEmail == email_1:
-                m = MagicMock()
-                m.personId = user_id_1
-                return [m]
-            if personEmail == email_2:
-                m = MagicMock()
-                m.personId = id_2
-                return [m]
-            return []
-
-        self.mock_api.memberships.list.side_effect = list_memberships
+        m1 = MagicMock()
+        m1.personId = user_id_1
+        m1.personEmail = email_1
+        m2 = MagicMock()
+        m2.personId = id_2
+        m2.personEmail = email_2
+        self.mock_api.memberships.list.return_value = [m1, m2]
 
         message_obj = MagicMock()
         message_obj.text = f"add John {email_2}"
@@ -176,19 +149,10 @@ class TestBotLogic(unittest.TestCase):
         user_id = "user_id_123"
         email = "user@example.com"
 
-        def list_memberships(roomId=None, personId=None, personEmail=None, **kwargs):
-            if personId == user_id:
-                m = MagicMock()
-                m.personEmail = email
-                m.personId = user_id
-                return [m]
-            if personEmail == email:
-                m = MagicMock()
-                m.personId = user_id
-                return [m]
-            return []
-
-        self.mock_api.memberships.list.side_effect = list_memberships
+        m = MagicMock()
+        m.personId = user_id
+        m.personEmail = email
+        self.mock_api.memberships.list.return_value = [m]
 
         message_obj = MagicMock()
         message_obj.text = "add @Bot @User"
@@ -196,9 +160,49 @@ class TestBotLogic(unittest.TestCase):
 
         self.bot.handle_command(message_obj, room_id, actor_id)
 
-        # Should only try to add user, not bot
         self.assertIn(user_id, self.mock_room['room_authorized_users'])
-        # Also ensure we didn't add @Bot or @User strings as users (they don't have dots)
+
+    def test_remove_user_by_mention(self):
+        room_id = "room123"
+        actor_id = "actor123"
+        user_id = "user_id_123"
+        email = "user@example.com"
+
+        self.mock_room['room_authorized_users'] = [user_id]
+
+        m = MagicMock()
+        m.personId = user_id
+        m.personEmail = email
+        self.mock_api.memberships.list.return_value = [m]
+
+        message_obj = MagicMock()
+        message_obj.text = "remove @User"
+        message_obj.mentionedPeople = [user_id]
+
+        self.bot.handle_command(message_obj, room_id, actor_id)
+
+        self.assertNotIn(user_id, self.mock_room['room_authorized_users'])
+
+    def test_remove_user_by_email(self):
+        room_id = "room123"
+        actor_id = "actor123"
+        user_id = "user_id_123"
+        email = "user@example.com"
+
+        self.mock_room['room_authorized_users'] = [user_id]
+
+        m = MagicMock()
+        m.personId = user_id
+        m.personEmail = email
+        self.mock_api.memberships.list.return_value = [m]
+
+        message_obj = MagicMock()
+        message_obj.text = f"remove {email}"
+        message_obj.mentionedPeople = []
+
+        self.bot.handle_command(message_obj, room_id, actor_id)
+
+        self.assertNotIn(user_id, self.mock_room['room_authorized_users'])
 
 
 if __name__ == '__main__':

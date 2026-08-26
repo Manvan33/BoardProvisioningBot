@@ -346,38 +346,6 @@ class BotWS:
             )
         return True
 
-    def add_allowed_user(self, room_id: str, user_email: str) -> bool:
-        room = self.storage.get_room(room_id)
-        if not room:
-            print("Error: Room not found in storage.")
-            return False
-        try:
-            memberships = list(self.api.memberships.list(roomId=room_id, personEmail=user_email))
-            if not memberships:
-                print(f"Error: User {user_email} not found in room {room_id}.")
-                return False
-            room['room_authorized_users'].append(memberships[0].personId)
-        except ApiError:
-            print(f"Error: Could not retrieve memberships for user {user_email} in room {room_id}.")
-            return False
-        return True
-    
-    def remove_allowed_user(self, room_id: str, user_email: str) -> bool:
-        room = self.storage.get_room(room_id)
-        if not room:
-            print("Error: Room not found in storage.")
-            return False
-        admin_id = self.get_id_from_email(user_email, room_id)
-        if not admin_id:
-            print(f"Error: User {user_email} not found in room {room_id}.")
-            return False
-        person_id = admin_id
-        if person_id in room['room_authorized_users']:
-            room['room_authorized_users'].remove(person_id)
-            return True
-        else:
-            print(f"Error: User {user_email} is not in the authorized users list for room {room_id}.")
-            return False
 
     def handle_added(self, room_id: str, admin_id: str) -> None:
         room_details = self.api.rooms.get(room_id)
@@ -514,34 +482,56 @@ class BotWS:
                 self.does_room_manage_org(room_id)
                 return
             case "add":
-                emails_to_add = set()
+                room = self.storage.get_room(room_id)
+                if not room:
+                    print("Error: Room not found in storage.")
+                    return
+
+                try:
+                    memberships = list(self.api.memberships.list(roomId=room_id))
+                except ApiError as e:
+                    print(f"Error fetching memberships: {e}")
+                    self.api.messages.create(roomId=room_id, text="Error fetching room memberships.")
+                    return
+
+                id_to_email = {m.personId: m.personEmail for m in memberships}
+                email_to_id = {m.personEmail: m.personId for m in memberships}
+
+                emails_found = set()
 
                 # Check for mentions
                 if hasattr(message_obj, 'mentionedPeople') and message_obj.mentionedPeople:
                     for person_id in message_obj.mentionedPeople:
                         if person_id == self.bot_id:
                             continue
-                        email = self.get_email_from_id(person_id, room_id)
-                        if email:
-                            emails_to_add.add(email)
+                        if person_id in id_to_email:
+                            emails_found.add(id_to_email[person_id])
 
                 # Check for emails in text
                 for word in command[1:]:
                     if '@' in word and '.' in word:
-                        emails_to_add.add(word)
+                        emails_found.add(word)
 
-                for email in emails_to_add:
-                    success = self.add_allowed_user(room_id, email)
-                    if success:
-                        self.api.messages.create(
-                            roomId=room_id,
-                            text=f"User {email} added successfully."
-                        )
+                added_emails = []
+                failed_emails = []
+
+                for email in emails_found:
+                    person_id = email_to_id.get(email)
+                    if person_id:
+                        if person_id not in room['room_authorized_users']:
+                            room['room_authorized_users'].append(person_id)
+                        added_emails.append(email)
                     else:
-                        self.api.messages.create(
-                            roomId=room_id,
-                            text=f"Failed to add user {email}. Make sure they are in this room."
-                        )
+                        failed_emails.append(email)
+
+                if added_emails or failed_emails:
+                    response = ""
+                    if added_emails:
+                        response += f"User(s) added successfully: {', '.join(added_emails)}.\n"
+                    if failed_emails:
+                        response += f"Failed to add: {', '.join(failed_emails)}. Make sure they are in this room."
+                    self.api.messages.create(roomId=room_id, text=response.strip())
+                    self.save()
                 return
             case "help":
                 self.api.messages.create(
@@ -562,29 +552,66 @@ class BotWS:
                     )
                 )
             case "remove":
-                emails_to_remove = set()
+                room = self.storage.get_room(room_id)
+                if not room:
+                    print("Error: Room not found in storage.")
+                    return
+
+                try:
+                    memberships = list(self.api.memberships.list(roomId=room_id))
+                except ApiError as e:
+                    print(f"Error fetching memberships: {e}")
+                    self.api.messages.create(roomId=room_id, text="Error fetching room memberships.")
+                    return
+
+                id_to_email = {m.personId: m.personEmail for m in memberships}
+                email_to_id = {m.personEmail: m.personId for m in memberships}
+
+                emails_to_process = set()
+
                 # Check for mentions
                 if hasattr(message_obj, 'mentionedPeople') and message_obj.mentionedPeople:
                     for person_id in message_obj.mentionedPeople:
                         if person_id == self.bot_id:
                             continue
-                        email = self.get_email_from_id(person_id, room_id)
-                        if email:
-                            emails_to_remove.add(email)
+                        if person_id in id_to_email:
+                            emails_to_process.add(id_to_email[person_id])
+
                 # Check for emails in text
                 for word in command[1:]:
                     if '@' in word and '.' in word:
-                        emails_to_remove.add(word)
-                for email in emails_to_remove:
-                    success = self.remove_allowed_user(room_id, email)
-                    if success:
-                        self.api.messages.create(
-                            roomId=room_id,
-                            text=f"User {email} removed successfully.")
+                        emails_to_process.add(word)
+
+                removed_emails = []
+                failed_emails = []
+
+                for email in emails_to_process:
+                    # We need the ID to check against room_authorized_users
+                    # It might be in email_to_id if they are still in the room
+                    # or we might need to find it by email if they left?
+                    # Actually, we can only remove them if they are in room_authorized_users (which stores IDs)
+
+                    person_id = email_to_id.get(email)
+
+                    # If not in room anymore, we might still have their ID if we want to remove them from authorized users
+                    # but current get_id_from_email uses memberships.list which only works if they are in the room.
+                    # So sticking to current behavior: must be in room to be resolved.
+
+                    if person_id and person_id in room['room_authorized_users']:
+                        room['room_authorized_users'].remove(person_id)
+                        removed_emails.append(email)
                     else:
-                        self.api.messages.create(
-                            roomId=room_id,
-                            text=f"Failed to remove user {email}. Make sure they are in the allowed users list.")
+                        failed_emails.append(email)
+
+                if removed_emails or failed_emails:
+                    response = ""
+                    if removed_emails:
+                        response += f"User(s) removed successfully: {', '.join(removed_emails)}.\n"
+                    if failed_emails:
+                        response += f"Failed to remove: {', '.join(failed_emails)}. Make sure they are in the allowed users list."
+                    self.api.messages.create(roomId=room_id, text=response.strip())
+                    self.save()
+                return
             case "info":
                 room = self.storage.get_room(room_id)
                 if not room:
